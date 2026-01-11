@@ -5,8 +5,13 @@
 1. Créer un compte sur [Railway](https://railway.app)
 2. Connecter votre GitHub
 3. Créer un nouveau projet depuis ce repo
-4. Railway déploiera automatiquement
-5. Récupérer l'URL (ex: `https://votre-app.up.railway.app`)
+4. **Ajouter les variables d'environnement** (onglet Variables) :
+   - `RDVDENTISTE_API_KEY` : Votre clé API rdvdentiste.net
+   - `RDVDENTISTE_OFFICE_CODE` : Votre Office Code (optionnel, sinon utilise la valeur par défaut)
+5. Railway déploiera automatiquement
+6. Récupérer l'URL (ex: `https://votre-app.up.railway.app`)
+
+---
 
 ## Étape 2 : Configurer les Custom Actions dans Synthflow
 
@@ -28,8 +33,6 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/rechercher_patient`
 - **Headers:**
   - `Content-Type: application/json`
-  - `X-Office-Code: VOTRE_OFFICE_CODE` (remplacer par le vrai code)
-  - `X-Api-Key: VOTRE_API_KEY` (si nécessaire)
 
 **Body (JSON):**
 ```json
@@ -46,7 +49,7 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 |----------|-------------|---------|
 | nom | Nom de famille du patient | "DUPONT" |
 | prenom | Prénom du patient | "Marie" |
-| date_naissance | Date de naissance format YYYY-MM-DD | "1985-03-15" |
+| date_naissance | Date de naissance format YYYY-MM-DD ou JJ/MM/AAAA | "1985-03-15" |
 | telephone | Numéro de téléphone mobile | "0612345678" |
 
 ---
@@ -56,15 +59,13 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 **Nom de l'action:** `consulter_disponibilites`
 
 **Description pour l'IA:**
-> Utilise cette action pour voir les créneaux disponibles. Demande d'abord au patient quel type de rendez-vous il souhaite et à partir de quelle date.
+> Utilise cette action pour voir les créneaux disponibles. Demande d'abord au patient quel type de rendez-vous il souhaite et à partir de quelle date. Utilise les codes numériques pour le type de RDV.
 
 **Configuration API:**
 - **Méthode:** POST
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/consulter_disponibilites`
 - **Headers:**
   - `Content-Type: application/json`
-  - `X-Office-Code: VOTRE_OFFICE_CODE`
-  - `X-Api-Key: VOTRE_API_KEY`
 
 **Body (JSON):**
 ```json
@@ -72,7 +73,7 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
   "type_rdv": "<type_rdv>",
   "date_debut": "<date_debut>",
   "date_fin": "<date_fin>",
-  "nouveau_patient": <nouveau_patient>,
+  "nouveau_patient": "<nouveau_patient>",
   "patient_id": "<patient_id>"
 }
 ```
@@ -80,10 +81,10 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 **Variables à créer:**
 | Variable | Description | Exemple |
 |----------|-------------|---------|
-| type_rdv | Code du type de RDV | "CONSULTATION" |
-| date_debut | Date de début de recherche YYYY-MM-DD | "2025-01-20" |
-| date_fin | Date de fin (optionnel, max 14 jours) | "2025-01-27" |
-| nouveau_patient | true si nouveau patient, false sinon | true |
+| type_rdv | **Code numérique** du type de RDV (voir tableau ci-dessous) | "27" |
+| date_debut | Date de début de recherche YYYY-MM-DD ou JJ/MM/AAAA | "2026-01-20" |
+| date_fin | Date de fin (optionnel, max 14 jours) | "2026-01-27" |
+| nouveau_patient | "true" si nouveau patient, "false" sinon | "true" |
 | patient_id | ID du patient si connu | "893" |
 
 ---
@@ -100,8 +101,6 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/creer_rdv`
 - **Headers:**
   - `Content-Type: application/json`
-  - `X-Office-Code: VOTRE_OFFICE_CODE`
-  - `X-Api-Key: VOTRE_API_KEY`
 
 **Body (JSON):**
 ```json
@@ -115,7 +114,7 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
   "telephone": "<telephone>",
   "email": "<email>",
   "date_naissance": "<date_naissance>",
-  "nouveau_patient": <nouveau_patient>,
+  "nouveau_patient": "<nouveau_patient>",
   "patient_id": "<patient_id>",
   "message": "<message>"
 }
@@ -124,16 +123,16 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 **Variables à créer:**
 | Variable | Description | Exemple |
 |----------|-------------|---------|
-| praticien_id | ID du praticien | "schedule_123" |
-| type_rdv | Code du type de RDV | "CONSULTATION" |
-| date | Date du RDV YYYY-MM-DD | "2025-01-22" |
+| praticien_id | ID du praticien (généralement "MC") | "MC" |
+| type_rdv | **Code numérique** du type de RDV | "27" |
+| date | Date du RDV YYYY-MM-DD ou JJ/MM/AAAA | "2026-01-22" |
 | heure | Heure au format HHMM | "0930" |
 | nom | Nom du patient | "DUPONT" |
 | prenom | Prénom du patient | "Marie" |
 | telephone | Téléphone mobile | "+33612345678" |
 | email | Email du patient | "marie@email.com" |
 | date_naissance | Date de naissance | "1985-03-15" |
-| nouveau_patient | true/false | true |
+| nouveau_patient | "true"/"false" | "true" |
 | patient_id | ID si patient existant | "" |
 | message | Message pour le praticien | "Douleur depuis 3 jours" |
 
@@ -151,8 +150,6 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/voir_rdv_patient`
 - **Headers:**
   - `Content-Type: application/json`
-  - `X-Office-Code: VOTRE_OFFICE_CODE`
-  - `X-Api-Key: VOTRE_API_KEY`
 
 **Body (JSON):**
 ```json
@@ -180,8 +177,6 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/annuler_rdv`
 - **Headers:**
   - `Content-Type: application/json`
-  - `X-Office-Code: VOTRE_OFFICE_CODE`
-  - `X-Api-Key: VOTRE_API_KEY`
 
 **Body (JSON):**
 ```json
@@ -273,19 +268,18 @@ Flux typique pour un nouveau RDV :
 5. Confirme les informations et crée le RDV
 6. Rappelle au patient qu'il recevra une confirmation
 
-Types de RDV disponibles (avec durées) :
-- URGENCE : Urgence dentaire (20 min)
-- CONSULTATION : Consultation générale (20 min)
-- BILAN : Bilan complet CDC/Esthétique/Ortho/Paro (60 min)
-- DETARTRAGE : Détartrage et maintenance (40 min)
-- PROPHYLAXIE : Séance de prophylaxie (45 min)
-- ECLAIRCISSEMENT : Blanchiment dentaire (80 min)
-- EXTRACTION : Extraction dentaire (40 min)
-- IMPLANT_GREFFE : Implant ou greffe (45 min)
-- PROTHESES : Prothèses dentaires (60 min)
-- COLLAGE_FACETTES : Facettes et inlays (30 min)
-- INVISALIGN_1ER_RDV : Premier RDV Invisalign (40 min)
-- INVISALIGN_TRAITEMENT : Suivi Invisalign (40 min)
+Types de RDV disponibles (avec codes numériques et durées) :
+- 84 : Urgence dentaire (20 min)
+- 27 : Consultation générale (20 min)
+- 37 : Bilan complet CDC/Esthétique/Ortho/Paro (60 min)
+- 45 : Détartrage et maintenance (40 min)
+- 75 : Séance de prophylaxie (45 min)
+- 23 : Blanchiment dentaire (80 min)
+- 36 : Soins conservateurs composites (30 min)
+- 30 : Prothèses (60 min) - patients existants uniquement
+- 20 : Collage facettes (30 min)
+- 21 : Inlay IRM empreinte optique (40 min)
+- 69 : Fin Invisalign (60 min)
 
 Horaires du cabinet :
 - Lundi : 09h30-19h30
@@ -307,13 +301,11 @@ Utilise l'action info_horaires pour plus de détails.
 ### Lister les praticiens
 ```
 GET https://VOTRE-URL-RAILWAY.up.railway.app/praticiens
-Headers: X-Office-Code: VOTRE_CODE
 ```
 
 ### Lister les types de RDV (depuis l'API rdvdentiste)
 ```
 GET https://VOTRE-URL-RAILWAY.up.railway.app/types_rdv
-Headers: X-Office-Code: VOTRE_CODE
 ```
 
 ### Infos types RDV cabinet (local)
@@ -333,42 +325,29 @@ GET https://VOTRE-URL-RAILWAY.up.railway.app/info/categories
 
 ---
 
-## Test avec l'environnement de test
+## Référentiel des types de RDV (Codes API)
 
-Pour tester, utilisez :
-- **Office Code:** `07142393B9A2E58PDEPW`
-- **Pas d'API Key requise**
+**IMPORTANT : Utiliser les codes numériques pour les appels API**
 
-Patients de test disponibles :
-| Nom | Prénom | Téléphone | ID |
-|-----|--------|-----------|-----|
-| TEST | - | 3607080910 | 893 |
-| ESSAI | Amélie | 0607080911 | 894 |
-
-Page de test : https://rdvdentiste.net/jardin-sur-erdre-test/pierre-et-clement.html
+| Code API | Nom | Durée | Nouveaux patients |
+|----------|-----|-------|-------------------|
+| 84 | URGENCE | 20 min | Oui |
+| 27 | CONSULTATION | 20 min | Oui |
+| 37 | BILAN CDC/ESTHETIQUE/ORTHO/PARO | 60 min | Oui |
+| 45 | DETARTRAGE et MAINTENANCE | 40 min | Oui |
+| 75 | SEANCE DE PROPHYLAXIE INITIALE | 45 min | Oui (âge 3 ans) |
+| 23 | ECLAIRCISSEMENT fauteuil | 80 min | Oui |
+| 36 | SOINS CONSERVATEURS COMPOSITES ITK | 30 min | Oui |
+| 30 | PROTHESES DEPOSE/PREP/EMP/PROV | 60 min | Non (existants) |
+| 20 | COLLAGE FACETTE | 30 min | Oui |
+| 21 | INLAY IRM EMP OPTIQUE | 40 min | Oui |
+| 69 | FIN INVISALIGN/POSE FIL/EMP/PHOTO | 60 min | Oui |
 
 ---
 
-## Référentiel des types de RDV
+## Notes importantes
 
-| Code | Nom | Durée | Jours disponibles |
-|------|-----|-------|-------------------|
-| URGENCE | Urgence | 20 min | Lun/Mar/Jeu/Ven/Sam |
-| CONSULTATION | Consultation | 20 min | Lun/Mar/Jeu/Ven/Sam |
-| BILAN | Bilan CDC/Esthétique/Ortho/Paro | 60 min | Lun/Mar/Jeu/Ven/Sam |
-| DETARTRAGE | Détartrage et Maintenance | 40 min | Lun/Mar/Ven/Sam |
-| PROPHYLAXIE | Séance de Prophylaxie | 45 min | Lun/Mar/Ven/Sam |
-| LITHOTRITIE | Lithotritie | 40 min | Lun/Mar/Ven |
-| ECLAIRCISSEMENT | Éclaircissement Fauteuil | 80 min | Lun/Mar/Jeu/Ven |
-| COLLAGE_FACETTES | Collage Facettes/Inlay/Pose | 30 min | Lun/Mar/Jeu/Ven |
-| SOINS_CONSERVATEURS | Soins Conservateurs Composites | 30 min | Lun/Mar/Jeu/Ven |
-| PROTHESES | Prothèses | 60 min | Lun/Mar/Jeu/Ven |
-| INLAY_IRM | Inlay IRM Empreinte Optique | 40 min | Lun/Mar/Jeu/Ven |
-| EVALUATION_PHOTO | Évaluation/Photo/Essayage | 30 min | Lun/Mar/Jeu/Ven |
-| EXTRACTION | Extraction/Résection Apicale | 40 min | Lun/Mar/Jeu/Ven/Sam |
-| IMPLANT_GREFFE | Implant/Greffe | 45 min | Lun/Mar/Jeu/Ven/Sam |
-| RESECTION_APICALE | Résection Apicale | 30 min | Lun/Mar/Jeu/Ven/Sam |
-| INVISALIGN_1ER_RDV | Invisalign 1er RDV | 40 min | Lun/Mar/Jeu/Ven |
-| INVISALIGN_TRAITEMENT | Invisalign Traitement | 40 min | Lun/Mar/Jeu/Ven |
-| EMP_OPTIQUE_CONTENTION | Empreinte Optique Contention | 15 min | Lun/Mar/Jeu/Ven |
-| FIN_INVISALIGN | Fin Invisalign | 60 min | Lun/Mar/Jeu/Ven |
+- **API Key** : Stockée en variable d'environnement sur Railway, pas besoin de la passer dans les headers Synthflow
+- **Office Code** : Également en variable d'environnement
+- **Dates** : L'API accepte les formats YYYY-MM-DD et JJ/MM/AAAA (conversion automatique)
+- **Praticien ID** : Par défaut "MC" (Dr Marie-Hélène CHRETIEN-FRANCESCHINI)
