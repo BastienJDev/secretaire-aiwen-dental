@@ -466,7 +466,9 @@ async def consulter_disponibilites(
 
     # Si pas de praticien spécifié, récupérer la liste
     if not request.praticien_id:
-        schedules = await call_rdvdentiste("GET", "/schedules", office_code, api_key)
+        schedules_response = await call_rdvdentiste("GET", "/schedules", office_code, api_key)
+        # Gérer le format FHIR de l'API rdvdentiste
+        schedules = schedules_response.get("Schedules", [])
         if schedules and len(schedules) > 0:
             request.praticien_id = schedules[0].get("id")
         else:
