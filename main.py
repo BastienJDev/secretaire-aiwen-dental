@@ -8,6 +8,33 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import httpx
 from datetime import datetime, timedelta
+import re
+
+
+def convertir_date(date_str: str) -> str:
+    """
+    Convertit une date du format français (JJ/MM/AAAA) vers ISO (YYYY-MM-DD).
+    Accepte aussi le format ISO directement.
+    """
+    if not date_str:
+        return date_str
+
+    # Si déjà au format ISO (YYYY-MM-DD)
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+        return date_str
+
+    # Format français JJ/MM/AAAA
+    if re.match(r'^\d{2}/\d{2}/\d{4}$', date_str):
+        jour, mois, annee = date_str.split('/')
+        return f"{annee}-{mois}-{jour}"
+
+    # Format français JJ-MM-AAAA
+    if re.match(r'^\d{2}-\d{2}-\d{4}$', date_str):
+        jour, mois, annee = date_str.split('-')
+        return f"{annee}-{mois}-{jour}"
+
+    # Retourner tel quel si format non reconnu
+    return date_str
 
 app = FastAPI(
     title="Secrétaire IA Dentiste",
@@ -285,7 +312,7 @@ class ConsulterDisponibilitesRequest(BaseModel):
     type_rdv: str = Field(..., description="Type de rendez-vous")
     date_debut: str = Field(..., description="Date de début (YYYY-MM-DD)")
     date_fin: Optional[str] = Field(None, description="Date de fin (YYYY-MM-DD), max 14 jours")
-    nouveau_patient: bool = Field(False, description="Est-ce un nouveau patient ?")
+    nouveau_patient: Optional[str] = Field("false", description="Est-ce un nouveau patient ? (true/false)")
     age_patient: Optional[int] = Field(None, description="Âge du patient")
     patient_id: Optional[str] = Field(None, description="ID du patient si connu")
 
@@ -300,7 +327,7 @@ class CreerRdvRequest(BaseModel):
     telephone: str = Field(..., description="Téléphone mobile")
     email: Optional[str] = Field(None, description="Email du patient")
     date_naissance: Optional[str] = Field(None, description="Date de naissance (YYYY-MM-DD)")
-    nouveau_patient: bool = Field(True, description="Est-ce un nouveau patient ?")
+    nouveau_patient: Optional[str] = Field("true", description="Est-ce un nouveau patient ? (true/false)")
     patient_id: Optional[str] = Field(None, description="ID du patient si connu")
     message: Optional[str] = Field(None, description="Message pour le praticien")
 
@@ -420,6 +447,11 @@ async def consulter_disponibilites(
     Consulte les créneaux disponibles pour un type de RDV.
     Retourne les créneaux libres sur la période demandée.
     """
+    # Convertir les dates du format français si nécessaire
+    request.date_debut = convertir_date(request.date_debut)
+    if request.date_fin:
+        request.date_fin = convertir_date(request.date_fin)
+
     # Si pas de date de fin, prendre 7 jours par défaut
     if not request.date_fin:
         date_debut = datetime.strptime(request.date_debut, "%Y-%m-%d")
@@ -434,10 +466,13 @@ async def consulter_disponibilites(
         else:
             raise HTTPException(status_code=404, detail="Aucun praticien trouvé")
 
+    # Convertir nouveau_patient string en boolean
+    is_new_patient = request.nouveau_patient and request.nouveau_patient.lower() == "true"
+
     params = {
         "start": request.date_debut,
         "end": request.date_fin,
-        "newPatient": "1" if request.nouveau_patient else "0"
+        "newPatient": "1" if is_new_patient else "0"
     }
     if request.age_patient:
         params["patientAge"] = request.age_patient
@@ -478,11 +513,19 @@ async def creer_rdv(
     Crée un nouveau rendez-vous.
     Le RDV sera en attente de confirmation par le praticien.
     """
+    # Convertir les dates du format français si nécessaire
+    request.date = convertir_date(request.date)
+    if request.date_naissance:
+        request.date_naissance = convertir_date(request.date_naissance)
+
+    # Convertir nouveau_patient string en boolean
+    is_new_patient = request.nouveau_patient and request.nouveau_patient.lower() == "true"
+
     params = {
         "firstName": request.prenom,
         "lastName": request.nom,
         "mobile": request.telephone,
-        "newPatient": "1" if request.nouveau_patient else "0"
+        "newPatient": "1" if is_new_patient else "0"
     }
     if request.email:
         params["email"] = request.email
