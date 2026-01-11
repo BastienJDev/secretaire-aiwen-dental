@@ -45,7 +45,7 @@ app = FastAPI(
 # Configuration API rdvdentiste
 RDVDENTISTE_BASE_URL = "https://www.rdvdentiste.net/api"
 # Office de test - À remplacer par le vrai OfficeCode en production
-DEFAULT_OFFICE_CODE = "07142393B9A2E58PDEPW"
+DEFAULT_OFFICE_CODE = "0501463005IMZDB742BK"
 
 
 # ============== RÉFÉRENTIEL DES TYPES DE RDV ==============
