@@ -9,6 +9,7 @@ from typing import Optional
 import httpx
 from datetime import datetime, timedelta
 import re
+import os
 
 
 def convertir_date(date_str: str) -> str:
@@ -45,7 +46,9 @@ app = FastAPI(
 # Configuration API rdvdentiste
 RDVDENTISTE_BASE_URL = "https://www.rdvdentiste.net/api"
 # Office de test - À remplacer par le vrai OfficeCode en production
-DEFAULT_OFFICE_CODE = "0501463005IMZDB742BK"
+DEFAULT_OFFICE_CODE = os.getenv("RDVDENTISTE_OFFICE_CODE", "0501463005IMZDB742BK")
+# API Key depuis variable d'environnement
+DEFAULT_API_KEY = os.getenv("RDVDENTISTE_API_KEY")
 
 
 # ============== RÉFÉRENTIEL DES TYPES DE RDV ==============
@@ -351,12 +354,15 @@ async def call_rdvdentiste(
     json_data: dict = None
 ) -> dict:
     """Appel générique à l'API rdvdentiste"""
+    # Utiliser l'API Key par défaut si non fournie
+    effective_api_key = api_key or DEFAULT_API_KEY
+
     headers = {
         "OfficeCode": office_code,
         "Content-Type": "application/json"
     }
-    if api_key:
-        headers["ApiKey"] = api_key
+    if effective_api_key:
+        headers["ApiKey"] = effective_api_key
 
     url = f"{RDVDENTISTE_BASE_URL}{endpoint}"
 
