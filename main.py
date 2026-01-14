@@ -341,6 +341,7 @@ class VoirRdvPatientRequest(BaseModel):
 
 class AnnulerRdvRequest(BaseModel):
     rdv_id: str = Field(..., description="ID du rendez-vous à annuler")
+    praticien_id: Optional[str] = Field("MC", description="ID du praticien (scheduleId)")
 
 
 # ============== HELPERS ==============
@@ -455,31 +456,53 @@ async def rechercher_patient(
     Recherche un patient existant dans le système.
     Retourne l'ID du patient si trouvé.
     """
+    # Convertir la date de naissance si nécessaire
+    date_naissance = convertir_date(request.date_naissance) if request.date_naissance else None
+
     params = {}
     if request.nom:
         params["lastName"] = request.nom
     if request.prenom:
         params["firstName"] = request.prenom
-    if request.date_naissance:
-        params["birthDate"] = request.date_naissance
+    if date_naissance:
+        params["birthDate"] = date_naissance
     if request.telephone:
         params["mobile"] = request.telephone
 
-    result = await call_rdvdentiste("GET", "/patients/find", office_code, api_key, params)
+    try:
+        result = await call_rdvdentiste("GET", "/patients/find", office_code, api_key, params)
 
-    if result:
-        return {
-            "success": True,
-            "trouve": True,
-            "patient": result,
-            "message": f"Patient trouvé avec l'ID {result.get('id', 'inconnu')}"
-        }
-    else:
-        return {
-            "success": True,
-            "trouve": False,
-            "message": "Aucun patient trouvé avec ces informations"
-        }
+        # Vérifier si c'est une erreur "notFound"
+        if isinstance(result, dict) and "Error" in result:
+            return {
+                "success": True,
+                "trouve": False,
+                "message": "Aucun patient trouvé avec ces informations"
+            }
+
+        if result:
+            return {
+                "success": True,
+                "trouve": True,
+                "patient": result,
+                "patient_id": result.get("id"),
+                "message": f"Patient trouvé avec l'ID {result.get('id', 'inconnu')}"
+            }
+        else:
+            return {
+                "success": True,
+                "trouve": False,
+                "message": "Aucun patient trouvé avec ces informations"
+            }
+    except HTTPException as e:
+        # L'API retourne 404 quand le patient n'est pas trouvé
+        if e.status_code == 404:
+            return {
+                "success": True,
+                "trouve": False,
+                "message": "Aucun patient trouvé avec ces informations"
+            }
+        raise e
 
 
 @app.post("/consulter_disponibilites")
@@ -665,16 +688,43 @@ async def annuler_rdv(
 ):
     """
     Annule un rendez-vous existant.
+    L'ID peut être au format D123456 (appointment) ou juste 123456 (request).
     """
-    endpoint = f"/appointments/{request.rdv_id}"
-    result = await call_rdvdentiste("DELETE", endpoint, office_code, api_key)
+    praticien_id = request.praticien_id or "MC"
+    rdv_id = request.rdv_id
 
-    return {
-        "success": True,
-        "rdv_id": request.rdv_id,
-        "message": f"Le rendez-vous {request.rdv_id} a été annulé avec succès",
-        "details": result
-    }
+    # Si l'ID commence par D, c'est un appointment confirmé
+    # Sinon c'est une demande (request)
+    if rdv_id.startswith("D"):
+        endpoint = f"/schedules/{praticien_id}/appointments/{rdv_id}"
+    else:
+        endpoint = f"/schedules/{praticien_id}/appointment-requests/{rdv_id}"
+
+    try:
+        result = await call_rdvdentiste("DELETE", endpoint, office_code, api_key)
+        return {
+            "success": True,
+            "rdv_id": request.rdv_id,
+            "message": f"Le rendez-vous {request.rdv_id} a été annulé avec succès",
+            "details": result
+        }
+    except HTTPException as e:
+        # Si erreur, essayer l'autre endpoint
+        if rdv_id.startswith("D"):
+            alt_endpoint = f"/schedules/{praticien_id}/appointment-requests/{rdv_id[1:]}"
+        else:
+            alt_endpoint = f"/schedules/{praticien_id}/appointments/D{rdv_id}"
+
+        try:
+            result = await call_rdvdentiste("DELETE", alt_endpoint, office_code, api_key)
+            return {
+                "success": True,
+                "rdv_id": request.rdv_id,
+                "message": f"Le rendez-vous {request.rdv_id} a été annulé avec succès",
+                "details": result
+            }
+        except:
+            raise e
 
 
 # ============== ENDPOINT POUR TYPES DE RDV ==============
