@@ -352,7 +352,8 @@ async def call_rdvdentiste(
     office_code: str,
     api_key: Optional[str] = None,
     params: dict = None,
-    json_data: dict = None
+    json_data: dict = None,
+    allow_404: bool = False
 ) -> dict:
     """Appel générique à l'API rdvdentiste"""
     # Utiliser l'API Key par défaut si non fournie
@@ -377,6 +378,13 @@ async def call_rdvdentiste(
                 response = await client.delete(url, headers=headers, params=params)
             else:
                 response = await client.post(url, headers=headers, params=params, json=json_data)
+
+            # Si allow_404 est True, retourner le JSON même en cas de 404
+            if allow_404 and response.status_code == 404:
+                try:
+                    return response.json()
+                except:
+                    return {"Error": {"code": "notFound", "text": "Not found"}}
 
             response.raise_for_status()
             return response.json()
@@ -469,40 +477,30 @@ async def rechercher_patient(
     if request.telephone:
         params["mobile"] = request.telephone
 
-    try:
-        result = await call_rdvdentiste("GET", "/patients/find", office_code, api_key, params)
+    result = await call_rdvdentiste("GET", "/patients/find", office_code, api_key, params, allow_404=True)
 
-        # Vérifier si c'est une erreur "notFound"
-        if isinstance(result, dict) and "Error" in result:
-            return {
-                "success": True,
-                "trouve": False,
-                "message": "Aucun patient trouvé avec ces informations"
-            }
+    # Vérifier si c'est une erreur "notFound"
+    if isinstance(result, dict) and "Error" in result:
+        return {
+            "success": True,
+            "trouve": False,
+            "message": "Aucun patient trouvé avec ces informations"
+        }
 
-        if result:
-            return {
-                "success": True,
-                "trouve": True,
-                "patient": result,
-                "patient_id": result.get("id"),
-                "message": f"Patient trouvé avec l'ID {result.get('id', 'inconnu')}"
-            }
-        else:
-            return {
-                "success": True,
-                "trouve": False,
-                "message": "Aucun patient trouvé avec ces informations"
-            }
-    except HTTPException as e:
-        # L'API retourne 404 quand le patient n'est pas trouvé
-        if e.status_code == 404:
-            return {
-                "success": True,
-                "trouve": False,
-                "message": "Aucun patient trouvé avec ces informations"
-            }
-        raise e
+    if result:
+        return {
+            "success": True,
+            "trouve": True,
+            "patient": result,
+            "patient_id": result.get("id"),
+            "message": f"Patient trouvé avec l'ID {result.get('id', 'inconnu')}"
+        }
+    else:
+        return {
+            "success": True,
+            "trouve": False,
+            "message": "Aucun patient trouvé avec ces informations"
+        }
 
 
 @app.post("/consulter_disponibilites")
