@@ -700,6 +700,18 @@ async def annuler_rdv(
 
     try:
         result = await call_rdvdentiste("DELETE", endpoint, office_code, api_key)
+
+        # Vérifier si déjà annulé
+        if isinstance(result, dict) and "error" in result:
+            error_msg = result.get("error", "")
+            if "already cancelled" in error_msg.lower():
+                return {
+                    "success": True,
+                    "rdv_id": request.rdv_id,
+                    "message": f"Le rendez-vous {request.rdv_id} était déjà annulé",
+                    "details": result
+                }
+
         return {
             "success": True,
             "rdv_id": request.rdv_id,
@@ -707,22 +719,39 @@ async def annuler_rdv(
             "details": result
         }
     except HTTPException as e:
-        # Si erreur, essayer l'autre endpoint
-        if rdv_id.startswith("D"):
-            alt_endpoint = f"/schedules/{praticien_id}/appointment-requests/{rdv_id[1:]}"
-        else:
-            alt_endpoint = f"/schedules/{praticien_id}/appointments/D{rdv_id}"
-
-        try:
-            result = await call_rdvdentiste("DELETE", alt_endpoint, office_code, api_key)
+        # Si erreur 400, peut-être déjà annulé ou autre problème
+        if e.status_code == 400:
             return {
-                "success": True,
+                "success": False,
                 "rdv_id": request.rdv_id,
-                "message": f"Le rendez-vous {request.rdv_id} a été annulé avec succès",
-                "details": result
+                "message": "Impossible d'annuler ce rendez-vous. Il est peut-être déjà annulé ou n'existe pas.",
+                "erreur": str(e.detail)
             }
-        except:
-            raise e
+
+        # Si erreur 404, essayer l'autre endpoint
+        if e.status_code == 404:
+            if rdv_id.startswith("D"):
+                alt_endpoint = f"/schedules/{praticien_id}/appointment-requests/{rdv_id[1:]}"
+            else:
+                alt_endpoint = f"/schedules/{praticien_id}/appointments/D{rdv_id}"
+
+            try:
+                result = await call_rdvdentiste("DELETE", alt_endpoint, office_code, api_key)
+                return {
+                    "success": True,
+                    "rdv_id": request.rdv_id,
+                    "message": f"Le rendez-vous {request.rdv_id} a été annulé avec succès",
+                    "details": result
+                }
+            except:
+                pass
+
+        return {
+            "success": False,
+            "rdv_id": request.rdv_id,
+            "message": "Rendez-vous non trouvé ou impossible à annuler",
+            "erreur": str(e.detail)
+        }
 
 
 # ============== ENDPOINT POUR TYPES DE RDV ==============
