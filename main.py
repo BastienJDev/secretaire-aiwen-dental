@@ -12,6 +12,27 @@ import re
 import os
 
 
+def normaliser_telephone(telephone: str) -> str:
+    """
+    Normalise un numéro de téléphone français.
+    Accepte: "06 83 79 14 43", "+33683791443", "0683791443", etc.
+    Retourne: "0683791443"
+    """
+    if not telephone:
+        return telephone
+
+    # Supprimer tous les espaces, tirets, points
+    tel = re.sub(r'[\s\-\.]', '', telephone)
+
+    # Remplacer +33 par 0
+    if tel.startswith('+33'):
+        tel = '0' + tel[3:]
+    elif tel.startswith('33') and len(tel) > 10:
+        tel = '0' + tel[2:]
+
+    return tel
+
+
 def convertir_date(date_str: str) -> str:
     """
     Convertit une date du format français (JJ/MM/AAAA) vers ISO (YYYY-MM-DD).
@@ -473,6 +494,8 @@ async def rechercher_patient(
     """
     # Convertir la date de naissance si nécessaire
     date_naissance = convertir_date(request.date_naissance) if request.date_naissance else None
+    # Normaliser le téléphone
+    telephone = normaliser_telephone(request.telephone) if request.telephone else None
 
     params = {}
     if request.nom:
@@ -481,8 +504,8 @@ async def rechercher_patient(
         params["firstName"] = request.prenom
     if date_naissance:
         params["birthDate"] = date_naissance
-    if request.telephone:
-        params["mobile"] = request.telephone
+    if telephone:
+        params["mobile"] = telephone
 
     result = await call_rdvdentiste("GET", "/patients/find", office_code, api_key, params, allow_404=True)
 
