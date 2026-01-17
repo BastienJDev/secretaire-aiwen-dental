@@ -365,6 +365,21 @@ class AnnulerRdvRequest(BaseModel):
     praticien_id: Optional[str] = Field("MC", description="ID du praticien (scheduleId)")
 
 
+class ModifierRdvRequest(BaseModel):
+    rdv_id: str = Field(..., description="ID du rendez-vous à modifier")
+    nouvelle_date: str = Field(..., description="Nouvelle date du RDV (YYYY-MM-DD ou JJ/MM/AAAA)")
+    nouvelle_heure: str = Field(..., description="Nouvelle heure du RDV (HHMM, ex: 0930)")
+    type_rdv: str = Field(..., description="Type de rendez-vous (code numérique: 84, 27, etc.)")
+    nom: str = Field(..., description="Nom du patient")
+    prenom: str = Field(..., description="Prénom du patient")
+    telephone: str = Field(..., description="Téléphone mobile du patient")
+    praticien_id: Optional[str] = Field("MC", description="ID du praticien (scheduleId)")
+    patient_id: Optional[str] = Field(None, description="ID du patient si connu")
+    email: Optional[str] = Field(None, description="Email du patient")
+    date_naissance: Optional[str] = Field(None, description="Date de naissance (YYYY-MM-DD)")
+    message: Optional[str] = Field(None, description="Message pour le praticien")
+
+
 # ============== HELPERS ==============
 
 async def call_rdvdentiste(
@@ -517,13 +532,22 @@ async def rechercher_patient(
             "message": "Aucun patient trouvé avec ces informations"
         }
 
-    if result:
+    # L'API peut retourner {"Patients": [...]} ou directement un objet patient
+    patient = None
+    if isinstance(result, dict):
+        if "Patients" in result and isinstance(result["Patients"], list) and len(result["Patients"]) > 0:
+            patient = result["Patients"][0]
+        elif "id" in result:
+            patient = result
+
+    if patient:
+        patient_id = patient.get("id") or patient.get("patientId")
         return {
             "success": True,
             "trouve": True,
-            "patient": result,
-            "patient_id": result.get("id"),
-            "message": f"Patient trouvé avec l'ID {result.get('id', 'inconnu')}"
+            "patient": patient,
+            "patient_id": patient_id,
+            "message": f"Patient trouvé avec l'ID {patient_id}"
         }
     else:
         return {
@@ -759,6 +783,105 @@ async def annuler_rdv(
         "rdv_id": request.rdv_id,
         "message": f"Le rendez-vous {request.rdv_id} a été annulé avec succès",
         "details": result
+    }
+
+
+@app.post("/modifier_rdv")
+async def modifier_rdv(
+    request: ModifierRdvRequest,
+    office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
+    api_key: Optional[str] = Header(default=None, alias="X-Api-Key")
+):
+    """
+    Modifie la date/heure d'un rendez-vous existant.
+    Procédure: annule l'ancien RDV puis crée un nouveau avec la nouvelle date/heure.
+    """
+    # Convertir les dates du format français si nécessaire
+    nouvelle_date = convertir_date(request.nouvelle_date)
+    date_naissance = convertir_date(request.date_naissance) if request.date_naissance else None
+
+    # Normaliser le téléphone
+    telephone = normaliser_telephone(request.telephone)
+
+    # Récupérer le praticien_id si non fourni
+    praticien_id = request.praticien_id
+    if not praticien_id:
+        schedules_response = await call_rdvdentiste("GET", "/schedules", office_code, api_key)
+        schedules = schedules_response.get("Schedules", [])
+        if schedules and len(schedules) > 0:
+            praticien_id = schedules[0].get("id")
+        else:
+            praticien_id = "MC"  # Fallback
+
+    # Étape 1: Annuler l'ancien RDV
+    rdv_id = request.rdv_id
+    if rdv_id.upper().startswith("D"):
+        cancel_endpoint = f"/schedules/{praticien_id}/appointments/{rdv_id}/"
+    else:
+        cancel_endpoint = f"/schedules/{praticien_id}/appointment-requests/{rdv_id}/"
+
+    cancel_result = await call_rdvdentiste("DELETE", cancel_endpoint, office_code, api_key)
+
+    # Vérifier si l'annulation a échoué (sauf si déjà annulé)
+    error_msg = None
+    if isinstance(cancel_result, dict):
+        error_msg = cancel_result.get("error") or cancel_result.get("Error")
+        if isinstance(error_msg, dict):
+            error_msg = error_msg.get("text") or error_msg.get("message") or str(error_msg)
+
+    if error_msg and "already cancelled" not in str(error_msg).lower() and "déjà annulé" not in str(error_msg).lower():
+        return {
+            "success": False,
+            "erreur": "annulation_echouee",
+            "message": f"Impossible d'annuler l'ancien RDV: {error_msg}",
+            "details": cancel_result
+        }
+
+    # Étape 2: Créer le nouveau RDV
+    create_params = {
+        "firstName": request.prenom,
+        "lastName": request.nom,
+        "mobile": telephone,
+        "newPatient": "0"  # Patient existant puisqu'il modifie un RDV
+    }
+    if request.email:
+        create_params["email"] = request.email
+    if date_naissance:
+        create_params["birthDate"] = date_naissance
+    if request.patient_id:
+        create_params["patientId"] = request.patient_id
+    if request.message:
+        create_params["messagePatient"] = request.message
+
+    create_endpoint = f"/schedules/{praticien_id}/slots/{request.type_rdv}/{nouvelle_date}/{request.nouvelle_heure}/"
+    create_result = await call_rdvdentiste("PUT", create_endpoint, office_code, api_key, create_params)
+
+    # Vérifier si le nouveau créneau est disponible
+    busy_message = create_result.get("busy", "")
+    is_confirmed = create_result.get("done", False)
+    new_rdv_id = create_result.get("rdvId") or create_result.get("idDemande")
+
+    if busy_message or (not is_confirmed and not new_rdv_id):
+        return {
+            "success": False,
+            "erreur": "nouveau_creneau_indisponible",
+            "message": "L'ancien RDV a été annulé mais le nouveau créneau n'est pas disponible. Veuillez consulter les disponibilités et réessayer.",
+            "ancien_rdv_annule": True,
+            "details": create_result
+        }
+
+    # Formater l'heure pour l'affichage
+    heure_format = f"{request.nouvelle_heure[:2]}h{request.nouvelle_heure[2:]}"
+
+    return {
+        "success": True,
+        "ancien_rdv_id": request.rdv_id,
+        "nouveau_rdv_id": new_rdv_id,
+        "statut": "Confirmé" if is_confirmed else "En attente de confirmation",
+        "nouvelle_date": nouvelle_date,
+        "nouvelle_heure": heure_format,
+        "message": f"Rendez-vous modifié avec succès. Nouveau RDV le {nouvelle_date} à {heure_format}.",
+        "details": create_result
     }
 
 
