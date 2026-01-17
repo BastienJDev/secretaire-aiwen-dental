@@ -541,7 +541,7 @@ async def rechercher_patient(
             patient = result
 
     if patient:
-        patient_id = patient.get("id") or patient.get("patientId")
+        patient_id = patient.get("identifier") or patient.get("id") or patient.get("patientId")
         return {
             "success": True,
             "trouve": True,
