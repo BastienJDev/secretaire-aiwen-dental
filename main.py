@@ -860,6 +860,12 @@ async def modifier_rdv(
     create_endpoint = f"/schedules/{praticien_id}/slots/{request.type_rdv}/{nouvelle_date}/{request.nouvelle_heure}/"
     create_result = await call_rdvdentiste("PUT", create_endpoint, office_code, api_key, create_params)
 
+    # Si redondance détectée et cancellable=True, réessayer avec le paramètre cancelPrevious
+    if isinstance(create_result, dict) and create_result.get("redondance") and create_result.get("cancellable"):
+        # Ajouter le paramètre pour annuler le RDV précédent
+        create_params["cancelPrevious"] = "1"
+        create_result = await call_rdvdentiste("PUT", create_endpoint, office_code, api_key, create_params)
+
     # Vérifier si le nouveau créneau est disponible
     busy_message = create_result.get("busy", "")
     is_confirmed = create_result.get("done", False)
