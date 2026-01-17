@@ -795,7 +795,7 @@ async def modifier_rdv(
 ):
     """
     Modifie la date/heure d'un rendez-vous existant.
-    Procédure: annule l'ancien RDV puis crée un nouveau avec la nouvelle date/heure.
+    Utilise le paramètre cancelPrevious pour laisser l'API gérer l'annulation de l'ancien RDV.
     """
     # Convertir les dates du format français si nécessaire
     nouvelle_date = convertir_date(request.nouvelle_date)
@@ -814,39 +814,14 @@ async def modifier_rdv(
         else:
             praticien_id = "MC"  # Fallback
 
-    # Étape 1: Annuler l'ancien RDV
-    rdv_id = request.rdv_id
-    if rdv_id.upper().startswith("D"):
-        cancel_endpoint = f"/schedules/{praticien_id}/appointments/{rdv_id}/"
-    else:
-        cancel_endpoint = f"/schedules/{praticien_id}/appointment-requests/{rdv_id}/"
-
-    cancel_result = await call_rdvdentiste("DELETE", cancel_endpoint, office_code, api_key)
-
-    # Vérifier si l'annulation a échoué (sauf si déjà annulé)
-    error_msg = None
-    if isinstance(cancel_result, dict):
-        error_msg = cancel_result.get("error") or cancel_result.get("Error")
-        if isinstance(error_msg, dict):
-            error_msg = error_msg.get("text") or error_msg.get("message") or str(error_msg)
-
-    if error_msg and "already cancelled" not in str(error_msg).lower() and "déjà annulé" not in str(error_msg).lower():
-        return {
-            "success": False,
-            "erreur": "annulation_echouee",
-            "message": f"Impossible d'annuler l'ancien RDV: {error_msg}",
-            "details": cancel_result
-        }
-
-    # Attendre que l'API synchronise l'annulation avant de créer le nouveau RDV
-    await asyncio.sleep(2)
-
-    # Étape 2: Créer le nouveau RDV
+    # Créer le nouveau RDV avec cancelPrevious=1 pour annuler automatiquement l'ancien
+    # L'API rdvdentiste gère elle-même la détection de redondance et l'annulation
     create_params = {
         "firstName": request.prenom,
         "lastName": request.nom,
         "mobile": telephone,
-        "newPatient": "0"  # Patient existant puisqu'il modifie un RDV
+        "newPatient": "0",  # Patient existant puisqu'il modifie un RDV
+        "cancelPrevious": "1"  # Annuler automatiquement les RDVs existants en redondance
     }
     if request.email:
         create_params["email"] = request.email
@@ -860,23 +835,26 @@ async def modifier_rdv(
     create_endpoint = f"/schedules/{praticien_id}/slots/{request.type_rdv}/{nouvelle_date}/{request.nouvelle_heure}/"
     create_result = await call_rdvdentiste("PUT", create_endpoint, office_code, api_key, create_params)
 
-    # Si redondance détectée et cancellable=True, réessayer avec le paramètre cancelPrevious
-    if isinstance(create_result, dict) and create_result.get("redondance") and create_result.get("cancellable"):
-        # Ajouter le paramètre pour annuler le RDV précédent
-        create_params["cancelPrevious"] = "1"
-        create_result = await call_rdvdentiste("PUT", create_endpoint, office_code, api_key, create_params)
-
     # Vérifier si le nouveau créneau est disponible
     busy_message = create_result.get("busy", "")
     is_confirmed = create_result.get("done", False)
     new_rdv_id = create_result.get("rdvId") or create_result.get("idDemande")
 
+    # Si redondance détectée mais non annulable, retourner une erreur explicite
+    if isinstance(create_result, dict) and create_result.get("redondance"):
+        if not create_result.get("cancellable"):
+            return {
+                "success": False,
+                "erreur": "redondance_non_annulable",
+                "message": "Un RDV existe déjà pour ce patient mais ne peut pas être annulé automatiquement. Veuillez d'abord annuler manuellement le RDV existant.",
+                "details": create_result
+            }
+
     if busy_message or (not is_confirmed and not new_rdv_id):
         return {
             "success": False,
-            "erreur": "nouveau_creneau_indisponible",
-            "message": "L'ancien RDV a été annulé mais le nouveau créneau n'est pas disponible. Veuillez consulter les disponibilités et réessayer.",
-            "ancien_rdv_annule": True,
+            "erreur": "creneau_indisponible",
+            "message": "Ce créneau n'est pas disponible. Veuillez consulter les disponibilités et choisir un autre créneau.",
             "details": create_result
         }
 
