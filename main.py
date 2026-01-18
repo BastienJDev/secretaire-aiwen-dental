@@ -358,11 +358,14 @@ class CreerRdvRequest(BaseModel):
 
 
 class VoirRdvPatientRequest(BaseModel):
-    patient_id: str = Field(..., description="ID du patient")
+    patient_id: Optional[str] = Field(None, description="ID du patient")
+    telephone: Optional[str] = Field(None, description="Téléphone du patient (pour recherche automatique)")
 
 
 class AnnulerRdvRequest(BaseModel):
-    rdv_id: str = Field(..., description="ID du rendez-vous à annuler")
+    telephone: str = Field(..., description="Téléphone du patient")
+    date_rdv: Optional[str] = Field(None, description="Date du RDV à annuler (YYYY-MM-DD ou JJ/MM/AAAA)")
+    rdv_id: Optional[str] = Field(None, description="ID du rendez-vous à annuler (si connu)")
     praticien_id: Optional[str] = Field("MC", description="ID du praticien (scheduleId)")
 
 
@@ -708,30 +711,86 @@ async def voir_rdv_patient(
 ):
     """
     Affiche tous les rendez-vous d'un patient.
+    Peut utiliser soit le patient_id, soit le téléphone pour rechercher.
+    Si plusieurs patients ont le même téléphone, retourne les RDV de tous.
     """
-    endpoint = f"/patients/{request.patient_id}/appointments"
-    result = await call_rdvdentiste("GET", endpoint, office_code, api_key)
-
     rdvs_formates = []
-    if isinstance(result, list):
-        for rdv in result:
-            service_type = rdv.get("service_type", {})
-            rdvs_formates.append({
-                "id": rdv.get("rdvId") or rdv.get("id"),
-                "date": rdv.get("date"),
-                "heure": rdv.get("start") or rdv.get("hour"),
-                "type": service_type.get("display") if isinstance(service_type, dict) else rdv.get("type"),
-                "duree_minutes": rdv.get("duration"),
-                "statut": rdv.get("status", "Confirmé")
-            })
 
-    return {
-        "success": True,
-        "patient_id": request.patient_id,
-        "rdvs": rdvs_formates,
-        "nombre_rdvs": len(rdvs_formates),
-        "message": f"Le patient a {len(rdvs_formates)} rendez-vous" if rdvs_formates else "Aucun rendez-vous trouvé pour ce patient"
-    }
+    if request.patient_id:
+        # Recherche par patient_id spécifique
+        endpoint = f"/patients/{request.patient_id}/appointments"
+        result = await call_rdvdentiste("GET", endpoint, office_code, api_key)
+
+        if isinstance(result, list):
+            for rdv in result:
+                service_type = rdv.get("service_type", {})
+                rdvs_formates.append({
+                    "id": rdv.get("rdvId") or rdv.get("id"),
+                    "date": rdv.get("date"),
+                    "heure": rdv.get("start") or rdv.get("hour"),
+                    "type": service_type.get("display") if isinstance(service_type, dict) else rdv.get("type"),
+                    "duree_minutes": rdv.get("duration"),
+                    "statut": rdv.get("status", "Confirmé")
+                })
+
+        return {
+            "success": True,
+            "patient_id": request.patient_id,
+            "rdvs": rdvs_formates,
+            "nombre_rdvs": len(rdvs_formates),
+            "message": f"Le patient a {len(rdvs_formates)} rendez-vous" if rdvs_formates else "Aucun rendez-vous trouvé pour ce patient"
+        }
+
+    elif request.telephone:
+        # Recherche par téléphone - parcourir TOUS les patients avec ce numéro
+        telephone = normaliser_telephone(request.telephone)
+        search_params = {"mobile": telephone}
+        search_result = await call_rdvdentiste("GET", "/patients/find", office_code, api_key, search_params, allow_404=True)
+
+        patient_ids = []
+        if isinstance(search_result, dict) and "Patients" in search_result:
+            patients = search_result.get("Patients", [])
+            for patient in patients:
+                pid = patient.get("identifier") or patient.get("id")
+                if pid:
+                    patient_ids.append(pid)
+
+        if not patient_ids:
+            return {
+                "success": False,
+                "message": "Aucun patient trouvé avec ce numéro de téléphone"
+            }
+
+        # Parcourir tous les patients et collecter leurs RDV
+        for patient_id in patient_ids:
+            result = await call_rdvdentiste("GET", f"/patients/{patient_id}/appointments", office_code, api_key)
+
+            if isinstance(result, list):
+                for rdv in result:
+                    service_type = rdv.get("service_type", {})
+                    rdvs_formates.append({
+                        "id": rdv.get("rdvId") or rdv.get("id"),
+                        "patient_id": patient_id,
+                        "date": rdv.get("date"),
+                        "heure": rdv.get("start") or rdv.get("hour"),
+                        "type": service_type.get("display") if isinstance(service_type, dict) else rdv.get("type"),
+                        "duree_minutes": rdv.get("duration"),
+                        "statut": rdv.get("status", "Confirmé")
+                    })
+
+        return {
+            "success": True,
+            "telephone": telephone,
+            "rdvs": rdvs_formates,
+            "nombre_rdvs": len(rdvs_formates),
+            "message": f"{len(rdvs_formates)} rendez-vous trouvé(s)" if rdvs_formates else "Aucun rendez-vous trouvé pour ce numéro"
+        }
+
+    else:
+        return {
+            "success": False,
+            "message": "Veuillez fournir un patient_id ou un numéro de téléphone"
+        }
 
 
 @app.post("/annuler_rdv")
@@ -742,11 +801,66 @@ async def annuler_rdv(
 ):
     """
     Annule un rendez-vous existant.
-    L'ID peut être au format D123456 (appointment) ou juste 123456 (request).
+    Utilise le téléphone pour trouver le patient et ses RDV.
+    Peut filtrer par date_rdv ou utiliser rdv_id directement si fourni.
     """
-    rdv_id = request.rdv_id
     praticien_id = request.praticien_id or "MC"
+    rdv_id = request.rdv_id
 
+    # Si pas de rdv_id, on doit chercher via le téléphone
+    if not rdv_id:
+        telephone = normaliser_telephone(request.telephone)
+
+        # 1. Rechercher TOUS les patients avec ce téléphone
+        search_params = {"mobile": telephone}
+        search_result = await call_rdvdentiste("GET", "/patients/find", office_code, api_key, search_params, allow_404=True)
+
+        # Extraire tous les patient_ids
+        patient_ids = []
+        if isinstance(search_result, dict) and "Patients" in search_result:
+            patients = search_result.get("Patients", [])
+            for patient in patients:
+                pid = patient.get("identifier") or patient.get("id")
+                if pid:
+                    patient_ids.append(pid)
+
+        if not patient_ids:
+            return {
+                "success": False,
+                "message": "Aucun patient trouvé avec ce numéro de téléphone"
+            }
+
+        # 2. Parcourir tous les patients pour trouver celui qui a un RDV actif
+        date_cible = convertir_date(request.date_rdv) if request.date_rdv else None
+        rdv_a_annuler = None
+
+        for patient_id in patient_ids:
+            rdvs_result = await call_rdvdentiste("GET", f"/patients/{patient_id}/appointments", office_code, api_key)
+
+            if isinstance(rdvs_result, list):
+                for rdv in rdvs_result:
+                    if rdv.get("status") == "active":
+                        if date_cible:
+                            if rdv.get("date") == date_cible:
+                                rdv_a_annuler = rdv
+                                break
+                        else:
+                            # Prendre le premier RDV actif si pas de date spécifiée
+                            rdv_a_annuler = rdv
+                            break
+
+            if rdv_a_annuler:
+                break
+
+        if not rdv_a_annuler:
+            return {
+                "success": False,
+                "message": f"Aucun rendez-vous actif trouvé" + (f" pour la date {date_cible}" if date_cible else "")
+            }
+
+        rdv_id = rdv_a_annuler.get("rdvId") or rdv_a_annuler.get("id")
+
+    # Annuler le RDV
     # Si l'ID commence par D, c'est un appointment confirmé
     # Sinon c'est une demande (request)
     if rdv_id.upper().startswith("D"):
@@ -767,22 +881,22 @@ async def annuler_rdv(
         if "already cancelled" in str(error_msg).lower() or "déjà annulé" in str(error_msg).lower():
             return {
                 "success": True,
-                "rdv_id": request.rdv_id,
-                "message": f"Le rendez-vous {request.rdv_id} était déjà annulé",
+                "rdv_id": rdv_id,
+                "message": f"Le rendez-vous {rdv_id} était déjà annulé",
                 "details": result
             }
         else:
             return {
                 "success": False,
-                "rdv_id": request.rdv_id,
+                "rdv_id": rdv_id,
                 "message": f"Erreur lors de l'annulation: {error_msg}",
                 "details": result
             }
 
     return {
         "success": True,
-        "rdv_id": request.rdv_id,
-        "message": f"Le rendez-vous {request.rdv_id} a été annulé avec succès",
+        "rdv_id": rdv_id,
+        "message": f"Le rendez-vous {rdv_id} a été annulé avec succès",
         "details": result
     }
 
