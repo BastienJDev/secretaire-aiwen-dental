@@ -169,18 +169,23 @@ async def trouver_rdvs_patient(patient_id: str, office_code: str, api_key: Optio
     """Récupère tous les RDV d'un patient"""
     result = await call_rdvdentiste("GET", f"/patients/{patient_id}/appointments", office_code, api_key)
 
+    print(f"[TROUVER_RDVS] Patient {patient_id} - Réponse brute API: {result}")
+
     rdvs = []
     if isinstance(result, list):
         for rdv in result:
             service_type = rdv.get("service_type", {})
+            rdv_id = rdv.get("rdvId") or rdv.get("id")
+            rdv_status = rdv.get("status", "Confirmé")
+            print(f"[TROUVER_RDVS] RDV trouvé: id={rdv_id}, status={rdv_status}, raw={rdv}")
             rdvs.append({
-                "id": rdv.get("rdvId") or rdv.get("id"),
+                "id": rdv_id,
                 "patient_id": patient_id,
                 "date": rdv.get("date"),
                 "heure": rdv.get("start") or rdv.get("hour"),
                 "type": service_type.get("display") if isinstance(service_type, dict) else rdv.get("type"),
                 "duree_minutes": rdv.get("duration"),
-                "statut": rdv.get("status", "Confirmé")
+                "statut": rdv_status
             })
 
     return rdvs
@@ -335,22 +340,35 @@ async def annuler_rdv(
             "message": "Je n'ai trouvé aucun patient avec ce numéro de téléphone."
         }
 
-    # Chercher un RDV actif à annuler
-    rdv_a_annuler = None
+    # Chercher tous les RDV actifs
+    tous_rdvs_actifs = []
     for patient in patients:
         rdvs = await trouver_rdvs_patient(patient["id"], office_code, api_key)
         for rdv in rdvs:
             if rdv.get("statut") == "active":
-                if date_cible:
-                    if rdv.get("date") == date_cible:
-                        rdv_a_annuler = rdv
-                        break
-                else:
-                    # Prendre le premier RDV actif
-                    rdv_a_annuler = rdv
-                    break
-        if rdv_a_annuler:
-            break
+                tous_rdvs_actifs.append(rdv)
+
+    print(f"[ANNULER_RDV] Tous les RDV actifs trouvés: {tous_rdvs_actifs}")
+
+    # Trier par date (plus proche en premier)
+    today = datetime.now().strftime("%Y-%m-%d")
+    tous_rdvs_actifs_futurs = [r for r in tous_rdvs_actifs if r.get("date", "") >= today]
+    tous_rdvs_actifs_futurs.sort(key=lambda r: r.get("date", "9999-99-99"))
+
+    print(f"[ANNULER_RDV] RDV futurs triés: {tous_rdvs_actifs_futurs}")
+
+    # Sélectionner le RDV à annuler
+    rdv_a_annuler = None
+    if date_cible:
+        # Chercher un RDV à la date spécifiée
+        for rdv in tous_rdvs_actifs_futurs:
+            if rdv.get("date") == date_cible:
+                rdv_a_annuler = rdv
+                break
+    else:
+        # Prendre le prochain RDV (le plus proche dans le futur)
+        if tous_rdvs_actifs_futurs:
+            rdv_a_annuler = tous_rdvs_actifs_futurs[0]
 
     if not rdv_a_annuler:
         msg = "Aucun rendez-vous actif trouvé"
@@ -359,6 +377,10 @@ async def annuler_rdv(
         return {"success": False, "message": msg}
 
     rdv_id = rdv_a_annuler["id"]
+    rdv_statut_original = rdv_a_annuler.get("statut")
+
+    # Log pour debug
+    print(f"[ANNULER_RDV] RDV trouvé: id={rdv_id}, statut={rdv_statut_original}, date={rdv_a_annuler.get('date')}")
 
     # Déterminer le bon endpoint (appointment vs appointment-request)
     if rdv_id.upper().startswith("D"):
@@ -366,8 +388,12 @@ async def annuler_rdv(
     else:
         endpoint = f"/schedules/{DEFAULT_PRATICIEN_ID}/appointment-requests/{rdv_id}/"
 
+    print(f"[ANNULER_RDV] Endpoint utilisé: DELETE {endpoint}")
+
     # Appeler l'API pour annuler
     result = await call_rdvdentiste("DELETE", endpoint, office_code, api_key)
+
+    print(f"[ANNULER_RDV] Réponse API: {result}")
 
     # Vérifier le résultat
     error_msg = None
