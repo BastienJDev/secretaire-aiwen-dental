@@ -700,6 +700,19 @@ async def suggerer_type_rdv(
     }
 
 
+# ============== ENDPOINT DEBUG (temporaire) ==============
+
+@app.get("/debug/rdvs_raw/{patient_id}")
+async def debug_rdvs_raw(
+    patient_id: str,
+    office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
+    api_key: Optional[str] = Header(default=None, alias="X-Api-Key")
+):
+    """DEBUG: Voir la réponse brute de l'API rdvdentiste pour les RDVs d'un patient"""
+    result = await call_rdvdentiste("GET", f"/patients/{patient_id}/appointments", office_code, api_key)
+    return {"raw_response": result}
+
+
 # ============== ENDPOINTS LEGACY (compatibilité) ==============
 
 @app.post("/voir_rdv_patient")
