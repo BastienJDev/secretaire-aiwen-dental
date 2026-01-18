@@ -616,6 +616,90 @@ async def lister_types_rdv(
     }
 
 
+# ============== ENDPOINTS /info/* (pour Fine-tuner.ai) ==============
+
+@app.get("/info/types_rdv")
+async def info_types_rdv(
+    office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
+    api_key: Optional[str] = Header(default=None, alias="X-Api-Key")
+):
+    """Liste tous les types de RDV disponibles (endpoint /info/)"""
+    return await lister_types_rdv(office_code, api_key)
+
+
+@app.get("/info/suggerer_type_rdv")
+async def suggerer_type_rdv(
+    motif: str = "",
+    office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
+    api_key: Optional[str] = Header(default=None, alias="X-Api-Key")
+):
+    """
+    Suggère le type de RDV le plus adapté au motif du patient.
+
+    Mapping des motifs vers les types de RDV courants.
+    """
+    motif_lower = motif.lower() if motif else ""
+
+    # Récupérer les types disponibles
+    types_result = await lister_types_rdv(office_code, api_key)
+    types_rdv = types_result.get("types_rdv", [])
+
+    # Mapping des mots-clés vers les types de RDV
+    suggestions = []
+
+    # Mots-clés pour différents types de soins
+    mappings = {
+        "urgence": ["urgence", "douleur", "mal", "cassé", "abcès", "gonflement", "saigne"],
+        "detartrage": ["détartrage", "detartrage", "nettoyage", "tartre", "hygiène"],
+        "consultation": ["consultation", "contrôle", "visite", "check", "bilan", "nouveau patient", "première visite"],
+        "extraction": ["extraction", "arracher", "enlever dent", "retirer"],
+        "couronne": ["couronne", "prothèse", "bridge"],
+        "implant": ["implant"],
+        "blanchiment": ["blanchiment", "blanchir", "éclaircissement"],
+        "carie": ["carie", "cavité", "trou"],
+        "devitalisation": ["dévitalisation", "devitalisation", "canal", "racine"],
+    }
+
+    # Trouver le type suggéré basé sur le motif
+    type_suggere = None
+    for type_key, keywords in mappings.items():
+        if any(kw in motif_lower for kw in keywords):
+            # Chercher un type de RDV correspondant
+            for t in types_rdv:
+                nom_type = (t.get("nom") or "").lower()
+                if type_key in nom_type or any(kw in nom_type for kw in keywords):
+                    type_suggere = t
+                    break
+            if type_suggere:
+                break
+
+    # Si pas de suggestion spécifique, proposer consultation générale
+    if not type_suggere and types_rdv:
+        for t in types_rdv:
+            nom = (t.get("nom") or "").lower()
+            if "consultation" in nom or "visite" in nom or "examen" in nom:
+                type_suggere = t
+                break
+        # Sinon prendre le premier type disponible
+        if not type_suggere:
+            type_suggere = types_rdv[0]
+
+    if type_suggere:
+        return {
+            "success": True,
+            "motif": motif,
+            "suggestion": type_suggere,
+            "message": f"Pour '{motif}', je vous suggère un RDV de type: {type_suggere.get('nom')} (code: {type_suggere.get('code')})"
+        }
+
+    return {
+        "success": False,
+        "motif": motif,
+        "message": "Je n'ai pas pu déterminer le type de RDV adapté. Voici les types disponibles.",
+        "types_disponibles": types_rdv
+    }
+
+
 # ============== ENDPOINTS LEGACY (compatibilité) ==============
 
 @app.post("/voir_rdv_patient")
