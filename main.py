@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 import httpx
 import asyncio
+import json
 from datetime import datetime, timedelta
 import re
 import os
@@ -26,6 +27,38 @@ RDVDENTISTE_BASE_URL = "https://www.rdvdentiste.net/api"
 DEFAULT_OFFICE_CODE = os.getenv("RDVDENTISTE_OFFICE_CODE", "0501463005IMZDB742BK")
 DEFAULT_API_KEY = os.getenv("RDVDENTISTE_API_KEY")
 DEFAULT_PRATICIEN_ID = "MC"
+
+# Fichier pour stocker les RDV annulés (car l'API rdvdentiste.net ne met pas à jour le statut)
+RDV_ANNULES_FILE = "/tmp/rdv_annules.json"
+
+
+def charger_rdv_annules() -> set:
+    """Charge la liste des IDs de RDV annulés depuis le fichier"""
+    try:
+        if os.path.exists(RDV_ANNULES_FILE):
+            with open(RDV_ANNULES_FILE, "r") as f:
+                data = json.load(f)
+                return set(data.get("ids", []))
+    except Exception as e:
+        print(f"[RDV_ANNULES] Erreur lecture fichier: {e}")
+    return set()
+
+
+def sauvegarder_rdv_annule(rdv_id: str):
+    """Ajoute un ID de RDV à la liste des annulés"""
+    try:
+        ids = charger_rdv_annules()
+        ids.add(rdv_id)
+        with open(RDV_ANNULES_FILE, "w") as f:
+            json.dump({"ids": list(ids), "updated": datetime.now().isoformat()}, f)
+        print(f"[RDV_ANNULES] RDV {rdv_id} ajouté à la liste des annulés")
+    except Exception as e:
+        print(f"[RDV_ANNULES] Erreur sauvegarde: {e}")
+
+
+def est_rdv_annule(rdv_id: str) -> bool:
+    """Vérifie si un RDV est dans la liste des annulés"""
+    return rdv_id in charger_rdv_annules()
 
 
 # ============== FONCTIONS UTILITAIRES ==============
@@ -178,7 +211,7 @@ async def trouver_patients_par_telephone(telephone: str, office_code: str, api_k
 
 
 async def trouver_rdvs_patient(patient_id: str, office_code: str, api_key: Optional[str]) -> List[dict]:
-    """Récupère tous les RDV d'un patient"""
+    """Récupère tous les RDV d'un patient (en filtrant ceux qu'on a annulés localement)"""
     result = await call_rdvdentiste("GET", f"/patients/{patient_id}/appointments", office_code, api_key)
 
     print(f"[TROUVER_RDVS] Patient {patient_id} - Réponse brute API: {result}")
@@ -189,7 +222,13 @@ async def trouver_rdvs_patient(patient_id: str, office_code: str, api_key: Optio
             service_type = rdv.get("service_type", {})
             rdv_id = rdv.get("rdvId") or rdv.get("id")
             alternate_id = rdv.get("alternateRdvId")
-            rdv_status = rdv.get("status", "active")  # Valeur par défaut "active" (pas "Confirmé")
+            rdv_status = rdv.get("status", "active")
+
+            # Vérifier si ce RDV a été annulé localement
+            if est_rdv_annule(rdv_id):
+                print(f"[TROUVER_RDVS] RDV {rdv_id} ignoré (annulé localement)")
+                continue
+
             print(f"[TROUVER_RDVS] RDV trouvé: id={rdv_id}, alternate_id={alternate_id}, status={rdv_status}, raw={rdv}")
             rdvs.append({
                 "id": rdv_id,
@@ -453,6 +492,8 @@ async def annuler_rdv(
 
     # Résultat final
     if annulation_reussie:
+        # Sauvegarder localement pour éviter que le RDV réapparaisse
+        sauvegarder_rdv_annule(rdv_id)
         return {
             "success": True,
             "rdv_id": rdv_id,
@@ -461,8 +502,10 @@ async def annuler_rdv(
             "message": f"Votre rendez-vous du {rdv_a_annuler['date']} à {rdv_a_annuler['heure']} a bien été annulé."
         }
 
-    # Aucun endpoint n'a fonctionné
+    # Aucun endpoint n'a fonctionné mais l'API dit "already cancelled"
     if derniere_erreur and ("already cancelled" in str(derniere_erreur).lower() or "déjà annulé" in str(derniere_erreur).lower()):
+        # Sauvegarder localement car l'API ne met pas à jour le statut
+        sauvegarder_rdv_annule(rdv_id)
         return {
             "success": True,
             "message": f"Ce rendez-vous du {rdv_a_annuler['date']} était déjà annulé."
