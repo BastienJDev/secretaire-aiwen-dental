@@ -145,15 +145,25 @@ async def call_rdvdentiste(
 async def trouver_patients_par_telephone(telephone: str, office_code: str, api_key: Optional[str]) -> List[dict]:
     """Recherche tous les patients avec un numéro de téléphone donné"""
     tel_normalise = normaliser_telephone(telephone)
+
+    print(f"[TROUVER_PATIENTS] Recherche avec mobile={tel_normalise}")
+
     search_result = await call_rdvdentiste(
         "GET", "/patients/find", office_code, api_key,
         {"mobile": tel_normalise}, allow_404=True
     )
 
+    print(f"[TROUVER_PATIENTS] Réponse API brute: {search_result}")
+
     patients = []
-    # L'API retourne "People" (pas "Patients")
-    if isinstance(search_result, dict) and "People" in search_result:
-        for patient in search_result.get("People", []):
+    # L'API retourne "People" (pas "Patients") - vérifier les deux au cas où
+    people_list = None
+    if isinstance(search_result, dict):
+        people_list = search_result.get("People") or search_result.get("Patients") or []
+        print(f"[TROUVER_PATIENTS] Liste trouvée: {people_list}")
+
+    if people_list:
+        for patient in people_list:
             patient_id = patient.get("identifier") or patient.get("id")
             if patient_id:
                 patients.append({
