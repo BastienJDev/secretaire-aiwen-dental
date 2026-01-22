@@ -170,18 +170,23 @@ async def trouver_rdvs_patient(patient_id: str, office_code: str, api_key: Optio
     """Récupère tous les RDV d'un patient"""
     result = await call_rdvdentiste("GET", f"/patients/{patient_id}/appointments", office_code, api_key)
 
+    print(f"[TROUVER_RDVS] Patient {patient_id} - Réponse brute API: {result}")
+
     rdvs = []
     if isinstance(result, list):
         for rdv in result:
             service_type = rdv.get("service_type", {})
+            rdv_id = rdv.get("rdvId") or rdv.get("id")
+            rdv_status = rdv.get("status", "active")  # Valeur par défaut "active" (pas "Confirmé")
+            print(f"[TROUVER_RDVS] RDV trouvé: id={rdv_id}, status={rdv_status}, raw={rdv}")
             rdvs.append({
-                "id": rdv.get("rdvId") or rdv.get("id"),
+                "id": rdv_id,
                 "patient_id": patient_id,
                 "date": rdv.get("date"),
                 "heure": rdv.get("start") or rdv.get("hour"),
                 "type": service_type.get("display") if isinstance(service_type, dict) else rdv.get("type"),
                 "duree_minutes": rdv.get("duration"),
-                "statut": rdv.get("status", "active")
+                "statut": rdv_status
             })
 
     return rdvs
@@ -320,7 +325,12 @@ async def annuler_rdv(
     Dans Synthflow, utiliser {user_phone_number} pour le téléphone.
     """
     telephone = normaliser_telephone(request.telephone)
-    date_cible = convertir_date(request.date_rdv) if request.date_rdv else None
+
+    # Ignorer date_rdv si c'est une variable non remplacée ou vide
+    date_rdv_raw = request.date_rdv
+    if date_rdv_raw and (date_rdv_raw.startswith("<") or date_rdv_raw.startswith("{") or date_rdv_raw == ""):
+        date_rdv_raw = None
+    date_cible = convertir_date(date_rdv_raw) if date_rdv_raw else None
 
     # Trouver tous les patients avec ce numéro
     patients = await trouver_patients_par_telephone(telephone, office_code, api_key)
@@ -331,22 +341,35 @@ async def annuler_rdv(
             "message": "Je n'ai trouvé aucun patient avec ce numéro de téléphone."
         }
 
-    # Chercher un RDV actif à annuler
-    rdv_a_annuler = None
+    # Chercher tous les RDV actifs
+    tous_rdvs_actifs = []
     for patient in patients:
         rdvs = await trouver_rdvs_patient(patient["id"], office_code, api_key)
         for rdv in rdvs:
             if rdv.get("statut") == "active":
-                if date_cible:
-                    if rdv.get("date") == date_cible:
-                        rdv_a_annuler = rdv
-                        break
-                else:
-                    # Prendre le premier RDV actif
-                    rdv_a_annuler = rdv
-                    break
-        if rdv_a_annuler:
-            break
+                tous_rdvs_actifs.append(rdv)
+
+    print(f"[ANNULER_RDV] Tous les RDV actifs trouvés: {tous_rdvs_actifs}")
+
+    # Trier par date (plus proche en premier)
+    today = datetime.now().strftime("%Y-%m-%d")
+    tous_rdvs_actifs_futurs = [r for r in tous_rdvs_actifs if r.get("date", "") >= today]
+    tous_rdvs_actifs_futurs.sort(key=lambda r: r.get("date", "9999-99-99"))
+
+    print(f"[ANNULER_RDV] RDV futurs triés: {tous_rdvs_actifs_futurs}")
+
+    # Sélectionner le RDV à annuler
+    rdv_a_annuler = None
+    if date_cible:
+        # Chercher un RDV à la date spécifiée
+        for rdv in tous_rdvs_actifs_futurs:
+            if rdv.get("date") == date_cible:
+                rdv_a_annuler = rdv
+                break
+    else:
+        # Prendre le prochain RDV (le plus proche dans le futur)
+        if tous_rdvs_actifs_futurs:
+            rdv_a_annuler = tous_rdvs_actifs_futurs[0]
 
     if not rdv_a_annuler:
         msg = "Aucun rendez-vous actif trouvé"
@@ -355,6 +378,10 @@ async def annuler_rdv(
         return {"success": False, "message": msg}
 
     rdv_id = rdv_a_annuler["id"]
+    rdv_statut_original = rdv_a_annuler.get("statut")
+
+    # Log pour debug
+    print(f"[ANNULER_RDV] RDV trouvé: id={rdv_id}, statut={rdv_statut_original}, date={rdv_a_annuler.get('date')}")
 
     # Déterminer le bon endpoint selon le préfixe de l'ID:
     # - "C" = demande en attente → /appointment-requests/
@@ -364,8 +391,12 @@ async def annuler_rdv(
     else:
         endpoint = f"/schedules/{DEFAULT_PRATICIEN_ID}/appointments/{rdv_id}/"
 
+    print(f"[ANNULER_RDV] Endpoint utilisé: DELETE {endpoint}")
+
     # Appeler l'API pour annuler
     result = await call_rdvdentiste("DELETE", endpoint, office_code, api_key)
+
+    print(f"[ANNULER_RDV] Réponse API: {result}")
 
     # Vérifier le résultat
     error_msg = None
@@ -612,6 +643,90 @@ async def lister_types_rdv(
         "success": True,
         "types_rdv": types_rdv,
         "message": f"{len(types_rdv)} types de RDV disponibles."
+    }
+
+
+# ============== ENDPOINTS /info/* (pour Fine-tuner.ai) ==============
+
+@app.get("/info/types_rdv")
+async def info_types_rdv(
+    office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
+    api_key: Optional[str] = Header(default=None, alias="X-Api-Key")
+):
+    """Liste tous les types de RDV disponibles (endpoint /info/)"""
+    return await lister_types_rdv(office_code, api_key)
+
+
+@app.get("/info/suggerer_type_rdv")
+async def suggerer_type_rdv(
+    motif: str = "",
+    office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
+    api_key: Optional[str] = Header(default=None, alias="X-Api-Key")
+):
+    """
+    Suggère le type de RDV le plus adapté au motif du patient.
+
+    Mapping des motifs vers les types de RDV courants.
+    """
+    motif_lower = motif.lower() if motif else ""
+
+    # Récupérer les types disponibles
+    types_result = await lister_types_rdv(office_code, api_key)
+    types_rdv = types_result.get("types_rdv", [])
+
+    # Mapping des mots-clés vers les types de RDV
+    suggestions = []
+
+    # Mots-clés pour différents types de soins
+    mappings = {
+        "urgence": ["urgence", "douleur", "mal", "cassé", "abcès", "gonflement", "saigne"],
+        "detartrage": ["détartrage", "detartrage", "nettoyage", "tartre", "hygiène"],
+        "consultation": ["consultation", "contrôle", "visite", "check", "bilan", "nouveau patient", "première visite"],
+        "extraction": ["extraction", "arracher", "enlever dent", "retirer"],
+        "couronne": ["couronne", "prothèse", "bridge"],
+        "implant": ["implant"],
+        "blanchiment": ["blanchiment", "blanchir", "éclaircissement"],
+        "carie": ["carie", "cavité", "trou"],
+        "devitalisation": ["dévitalisation", "devitalisation", "canal", "racine"],
+    }
+
+    # Trouver le type suggéré basé sur le motif
+    type_suggere = None
+    for type_key, keywords in mappings.items():
+        if any(kw in motif_lower for kw in keywords):
+            # Chercher un type de RDV correspondant
+            for t in types_rdv:
+                nom_type = (t.get("nom") or "").lower()
+                if type_key in nom_type or any(kw in nom_type for kw in keywords):
+                    type_suggere = t
+                    break
+            if type_suggere:
+                break
+
+    # Si pas de suggestion spécifique, proposer consultation générale
+    if not type_suggere and types_rdv:
+        for t in types_rdv:
+            nom = (t.get("nom") or "").lower()
+            if "consultation" in nom or "visite" in nom or "examen" in nom:
+                type_suggere = t
+                break
+        # Sinon prendre le premier type disponible
+        if not type_suggere:
+            type_suggere = types_rdv[0]
+
+    if type_suggere:
+        return {
+            "success": True,
+            "motif": motif,
+            "suggestion": type_suggere,
+            "message": f"Pour '{motif}', je vous suggère un RDV de type: {type_suggere.get('nom')} (code: {type_suggere.get('code')})"
+        }
+
+    return {
+        "success": False,
+        "motif": motif,
+        "message": "Je n'ai pas pu déterminer le type de RDV adapté. Voici les types disponibles.",
+        "types_disponibles": types_rdv
     }
 
 
