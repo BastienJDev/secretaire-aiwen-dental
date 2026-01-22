@@ -713,6 +713,32 @@ async def lister_types_rdv(
 
 # ============== ENDPOINTS /info/* (pour Fine-tuner.ai) ==============
 
+@app.get("/debug/rdv/{rdv_id}")
+async def debug_rdv(
+    rdv_id: str,
+    office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
+    api_key: Optional[str] = Header(default=None, alias="X-Api-Key")
+):
+    """DEBUG: Tester différents GET pour voir le statut d'un RDV"""
+    print(f"[DEBUG] Test GET pour RDV {rdv_id}")
+    results = {}
+
+    endpoints = [
+        f"/schedules/{DEFAULT_PRATICIEN_ID}/appointments/{rdv_id}/",
+        f"/schedules/{DEFAULT_PRATICIEN_ID}/appointment-requests/{rdv_id}/",
+        f"/appointments/{rdv_id}/",
+        f"/appointment-requests/{rdv_id}/",
+    ]
+
+    for endpoint in endpoints:
+        print(f"[DEBUG] GET {endpoint}")
+        result = await call_rdvdentiste("GET", endpoint, office_code, api_key)
+        print(f"[DEBUG] Réponse: {result}")
+        results[endpoint] = result
+
+    return {"rdv_id": rdv_id, "results": results}
+
+
 @app.get("/info/types_rdv")
 async def info_types_rdv(
     office_code: str = Header(default=DEFAULT_OFFICE_CODE, alias="X-Office-Code"),
