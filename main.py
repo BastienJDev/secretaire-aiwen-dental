@@ -307,6 +307,9 @@ async def call_rdvdentiste(
             else:
                 response = await client.post(url, headers=headers, params=params, json=json_data)
 
+            # Log pour debug
+            print(f"[API] {method} {endpoint} -> Status: {response.status_code}")
+
             # Gérer les cas spéciaux
             if allow_404 and response.status_code == 404:
                 try:
@@ -319,6 +322,17 @@ async def call_rdvdentiste(
                     return response.json()
                 except:
                     pass
+
+            # Pour DELETE, gérer les réponses vides (204 No Content) et retourner le status code
+            if method == "DELETE":
+                response.raise_for_status()
+                try:
+                    body = response.json() if response.text else {}
+                except:
+                    body = {}
+                # Ajouter le status code pour vérification
+                body["_http_status"] = response.status_code
+                return body
 
             response.raise_for_status()
             return response.json()
@@ -613,10 +627,24 @@ async def annuler_rdv(
 
     for endpoint in endpoints_a_essayer:
         print(f"[ANNULER_RDV] Tentative DELETE {endpoint}")
-        result = await call_rdvdentiste("DELETE", endpoint, office_code, api_key)
-        print(f"[ANNULER_RDV] Réponse API DELETE: {result}")
 
-        # Vérifier si erreur
+        try:
+            result = await call_rdvdentiste("DELETE", endpoint, office_code, api_key)
+            print(f"[ANNULER_RDV] Réponse API DELETE: {result}")
+        except HTTPException as e:
+            print(f"[ANNULER_RDV] HTTPException sur {endpoint}: {e.status_code} - {e.detail}")
+            derniere_erreur = f"HTTP {e.status_code}: {e.detail}"
+            continue
+        except Exception as e:
+            print(f"[ANNULER_RDV] Exception sur {endpoint}: {str(e)}")
+            derniere_erreur = str(e)
+            continue
+
+        # Vérifier le status code HTTP
+        http_status = result.get("_http_status") if isinstance(result, dict) else None
+        print(f"[ANNULER_RDV] HTTP Status: {http_status}")
+
+        # Vérifier si erreur dans la réponse
         error_msg = None
         if isinstance(result, dict):
             error_msg = result.get("error") or result.get("Error")
@@ -624,28 +652,45 @@ async def annuler_rdv(
                 error_msg = error_msg.get("text") or error_msg.get("message") or str(error_msg)
 
         if error_msg:
-            print(f"[ANNULER_RDV] Erreur sur cet endpoint: {error_msg}")
+            print(f"[ANNULER_RDV] Erreur dans la réponse: {error_msg}")
             derniere_erreur = error_msg
-            # Continuer à essayer les autres endpoints
             continue
 
-        # Pas d'erreur, vérifier si le RDV est vraiment annulé
-        await asyncio.sleep(0.5)  # Petite pause pour laisser l'API propager
+        # Vérifier si le status HTTP indique un succès réel
+        if http_status and http_status not in [200, 204]:
+            print(f"[ANNULER_RDV] Status HTTP {http_status} inattendu, on continue...")
+            derniere_erreur = f"Status HTTP inattendu: {http_status}"
+            continue
+
+        # Attendre un peu et vérifier si le RDV est vraiment annulé dans l'API
+        await asyncio.sleep(1.0)  # Pause plus longue pour laisser l'API propager
 
         rdvs_apres = await trouver_rdvs_patient(rdv_a_annuler["patient_id"], office_code, api_key)
+
+        # Log tous les RDV trouvés pour debug
+        print(f"[ANNULER_RDV] RDVs après annulation: {rdvs_apres}")
+
+        # Vérifier si le RDV est toujours présent ET actif
         rdv_encore_actif = any(
             r.get("id") == rdv_id and r.get("statut") == "active"
             for r in rdvs_apres
         )
 
-        print(f"[ANNULER_RDV] Après {endpoint}: RDV encore actif = {rdv_encore_actif}")
+        # Vérifier aussi avec l'alternate_id
+        rdv_alternate_encore_actif = alternate_id and any(
+            r.get("alternate_id") == alternate_id and r.get("statut") == "active"
+            for r in rdvs_apres
+        )
 
-        if not rdv_encore_actif:
-            print(f"[ANNULER_RDV] ✅ Annulation réussie avec {endpoint}")
+        print(f"[ANNULER_RDV] Après {endpoint}: RDV encore actif = {rdv_encore_actif}, alternate actif = {rdv_alternate_encore_actif}")
+
+        if not rdv_encore_actif and not rdv_alternate_encore_actif:
+            print(f"[ANNULER_RDV] ✅ Annulation confirmée - RDV non trouvé ou inactif")
             annulation_reussie = True
             break
         else:
-            print(f"[ANNULER_RDV] ❌ RDV toujours actif, on essaie le prochain endpoint...")
+            print(f"[ANNULER_RDV] ❌ RDV toujours actif après DELETE, l'annulation n'a pas fonctionné")
+            derniere_erreur = "Le RDV est toujours actif après la tentative d'annulation"
 
     # Résultat final
     if annulation_reussie:
@@ -668,10 +713,11 @@ async def annuler_rdv(
             "message": f"Ce rendez-vous du {rdv_a_annuler['date']} était déjà annulé."
         }
 
-    print(f"[ANNULER_RDV] ⚠️ ÉCHEC: Aucun endpoint n'a réussi à annuler le RDV {rdv_id}")
+    print(f"[ANNULER_RDV] ⚠️ ÉCHEC: Aucun endpoint n'a réussi à annuler le RDV {rdv_id}. Dernière erreur: {derniere_erreur}")
     return {
         "success": False,
-        "message": f"Impossible d'annuler le rendez-vous. Veuillez contacter le cabinet directement."
+        "message": f"Impossible d'annuler le rendez-vous. Veuillez contacter le cabinet directement.",
+        "erreur_technique": derniere_erreur
     }
 
 
