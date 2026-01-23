@@ -889,14 +889,35 @@ async def lister_types_rdv(
     schedules = result.get("Schedules", []) if isinstance(result, dict) else result
 
     for schedule in schedules:
-        if isinstance(schedule, dict) and "appointmentTypes" in schedule:
-            for apt_type in schedule.get("appointmentTypes", []):
-                types_rdv.append({
-                    "code": apt_type.get("code"),
-                    "nom": apt_type.get("name"),
-                    "duree_minutes": apt_type.get("duration"),
-                    "nouveau_patient_only": apt_type.get("newPatientOnly", False)
-                })
+        if isinstance(schedule, dict):
+            # Parser la structure FHIR avec extensions
+            extensions = schedule.get("extension", [])
+            for ext in extensions:
+                if ext.get("url") == "http://interopsante.org/fhir/structuredefinition/schedule/fr-service-type-duration":
+                    service_type = None
+                    duration = None
+                    new_patient_only = False
+
+                    for sub_ext in ext.get("extension", []):
+                        if sub_ext.get("url") == "serviceType":
+                            coding = sub_ext.get("valueCodeableConcept", {}).get("coding", [])
+                            if coding:
+                                service_type = coding[0]
+                                # Vérifier eligibility pour nouveaux patients
+                                eligibility = coding[0].get("eligibility", [])
+                                for elig in eligibility:
+                                    if elig.get("code") == "newPatients":
+                                        new_patient_only = elig.get("value", False)
+                        elif sub_ext.get("url") == "duration":
+                            duration = sub_ext.get("valueDuration", {}).get("time", {}).get("value")
+
+                    if service_type:
+                        types_rdv.append({
+                            "code": service_type.get("code"),
+                            "nom": service_type.get("display"),
+                            "duree_minutes": int(duration) if duration else None,
+                            "nouveau_patient_only": new_patient_only
+                        })
 
     return {
         "success": True,
