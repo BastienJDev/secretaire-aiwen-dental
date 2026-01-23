@@ -626,6 +626,17 @@ async def annuler_rdv(
         if error_msg:
             print(f"[ANNULER_RDV] Erreur sur cet endpoint: {error_msg}")
             derniere_erreur = error_msg
+
+            # Si l'API dit que le RDV est déjà annulé, on le note localement et on arrête
+            error_lower = str(error_msg).lower()
+            if "already cancelled" in error_lower or "déjà annulé" in error_lower or "already canceled" in error_lower:
+                print(f"[ANNULER_RDV] ✅ API indique RDV déjà annulé, sauvegarde locale")
+                sauvegarder_rdv_annule(rdv_id)
+                return {
+                    "success": True,
+                    "message": f"Ce rendez-vous du {rdv_a_annuler['date']} à {rdv_a_annuler['heure']} était déjà annulé."
+                }
+
             # Continuer à essayer les autres endpoints
             continue
 
