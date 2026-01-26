@@ -23,7 +23,21 @@
 
 ## Etape 2 : Configurer les Custom Actions dans Synthflow
 
-Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
+Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
+
+### Variables Synthflow
+
+| Variable | Description | Auto |
+|----------|-------------|------|
+| `{user_phone_number}` | Numero de l'appelant | OUI (automatique) |
+| `{type_rdv}` | Code numerique du RDV (ex: "4", "10") | NON |
+| `{date_debut}` | Date debut recherche (YYYY-MM-DD) | NON |
+| `{date}` | Date du RDV (YYYY-MM-DD) | NON |
+| `{heure}` | Heure format HHMM (ex: "0850") | NON |
+| `{nom}` | Nom du patient | NON |
+| `{prenom}` | Prenom du patient | NON |
+| `{date_rdv}` | Date RDV a annuler (optionnel) | NON |
+| `{motif}` | Description du probleme | NON |
 
 ---
 
@@ -34,7 +48,7 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Nom de l'action:** `rechercher_patient`
 
 **Description pour l'IA:**
-> Utilise cette action pour rechercher un patient existant dans le systeme. Tu peux chercher par nom, prenom, date de naissance ou telephone. Utilise-la quand le patient dit qu'il est deja venu au cabinet.
+> Utilise cette action pour rechercher un patient existant dans le systeme par son numero de telephone.
 
 **Configuration API:**
 - **Methode:** POST
@@ -45,12 +59,11 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Body (JSON):**
 ```json
 {
-  "nom": "<nom>",
-  "prenom": "<prenom>",
-  "date_naissance": "<date_naissance>",
-  "telephone": "<telephone>"
+  "telephone": "{user_phone_number}"
 }
 ```
+
+**Variables:** Aucune a creer (telephone automatique)
 
 ---
 
@@ -70,12 +83,17 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Body (JSON):**
 ```json
 {
-  "type_rdv": "<type_rdv>",
-  "date_debut": "<date_debut>",
-  "date_fin": "<date_fin>",
-  "nouveau_patient": "<nouveau_patient>"
+  "type_rdv": "{type_rdv}",
+  "date_debut": "{date_debut}",
+  "nouveau_patient": true
 }
 ```
+
+**Variables a creer:**
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| type_rdv | Code numerique du type de RDV | "4" |
+| date_debut | Date de debut de recherche | "2026-01-27" |
 
 ---
 
@@ -84,7 +102,7 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Nom de l'action:** `creer_rdv`
 
 **Description pour l'IA:**
-> Utilise cette action pour reserver un creneau une fois que le patient a choisi une date et une heure. Tu dois avoir toutes les informations du patient : nom, prenom, telephone, et optionnellement email et date de naissance.
+> Utilise cette action pour reserver un creneau une fois que le patient a choisi une date et une heure. Tu dois avoir le nom et prenom du patient.
 
 **Configuration API:**
 - **Methode:** POST
@@ -95,18 +113,24 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Body (JSON):**
 ```json
 {
-  "type_rdv": "<type_rdv>",
-  "date": "<date>",
-  "heure": "<heure>",
-  "nom": "<nom>",
-  "prenom": "<prenom>",
-  "telephone": "<telephone>",
-  "email": "<email>",
-  "date_naissance": "<date_naissance>",
-  "nouveau_patient": "<nouveau_patient>",
-  "message": "<message>"
+  "type_rdv": "{type_rdv}",
+  "date": "{date}",
+  "heure": "{heure}",
+  "nom": "{nom}",
+  "prenom": "{prenom}",
+  "telephone": "{user_phone_number}",
+  "nouveau_patient": true
 }
 ```
+
+**Variables a creer:**
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| type_rdv | Code numerique du type de RDV | "4" |
+| date | Date du RDV | "2026-01-28" |
+| heure | Heure format HHMM | "0850" |
+| nom | Nom du patient | "DUPONT" |
+| prenom | Prenom du patient | "Marie" |
 
 ---
 
@@ -115,7 +139,7 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Nom de l'action:** `voir_rdv`
 
 **Description pour l'IA:**
-> Utilise cette action pour afficher tous les rendez-vous d'un patient en utilisant son numero de telephone.
+> Utilise cette action pour afficher tous les rendez-vous d'un patient. Le telephone est recupere automatiquement.
 
 **Configuration API:**
 - **Methode:** POST
@@ -126,9 +150,11 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Body (JSON):**
 ```json
 {
-  "telephone": "<telephone>"
+  "telephone": "{user_phone_number}"
 }
 ```
+
+**Variables:** Aucune a creer (telephone automatique)
 
 ---
 
@@ -137,7 +163,7 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Nom de l'action:** `annuler_rdv`
 
 **Description pour l'IA:**
-> Utilise cette action pour annuler un rendez-vous existant. Utilise le telephone du patient pour retrouver ses RDV.
+> Utilise cette action pour annuler un rendez-vous existant. Le telephone est recupere automatiquement. Si le patient a plusieurs RDV, demande la date du RDV a annuler.
 
 **Configuration API:**
 - **Methode:** POST
@@ -148,10 +174,15 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 **Body (JSON):**
 ```json
 {
-  "telephone": "<telephone>",
-  "date_rdv": "<date_rdv>"
+  "telephone": "{user_phone_number}",
+  "date_rdv": "{date_rdv}"
 }
 ```
+
+**Variables a creer:**
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| date_rdv | Date du RDV a annuler (optionnel) | "2026-01-28" |
 
 ---
 
@@ -164,7 +195,12 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 
 **Configuration API:**
 - **Methode:** GET
-- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/info/suggerer_type_rdv?motif=<motif>`
+- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/info/suggerer_type_rdv?motif={motif}`
+
+**Variables a creer:**
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| motif | Description du probleme | "j'ai mal a une dent" |
 
 ---
 
