@@ -745,85 +745,112 @@ async def consulter_disponibilites(
     Retourne les créneaux disponibles pour un type de RDV donné.
     Filtre automatiquement les créneaux selon les plages horaires autorisées.
     """
-    date_debut = convertir_date(request.date_debut)
+    try:
+        date_debut = convertir_date(request.date_debut)
 
-    # Date de fin par défaut: +14 jours
-    if request.date_fin:
-        date_fin = convertir_date(request.date_fin)
-    else:
-        date_debut_obj = datetime.strptime(date_debut, "%Y-%m-%d")
-        date_fin = (date_debut_obj + timedelta(days=14)).strftime("%Y-%m-%d")
+        # Date de fin par défaut: +14 jours
+        if request.date_fin:
+            date_fin = convertir_date(request.date_fin)
+        else:
+            date_debut_obj = datetime.strptime(date_debut, "%Y-%m-%d")
+            date_fin = (date_debut_obj + timedelta(days=14)).strftime("%Y-%m-%d")
 
-    # Déterminer la catégorie à partir du code OU du nom
-    categorie = CODE_TO_CATEGORIE.get(request.type_rdv)
-    if not categorie and request.type_rdv_nom:
-        categorie = trouver_categorie_rdv(request.type_rdv_nom)
+        # Déterminer la catégorie à partir du code OU du nom
+        categorie = CODE_TO_CATEGORIE.get(request.type_rdv)
+        if not categorie and request.type_rdv_nom:
+            categorie = trouver_categorie_rdv(request.type_rdv_nom)
 
-    print(f"[DISPONIBILITES] Type RDV: {request.type_rdv}, Catégorie: {categorie}")
+        print(f"[DISPONIBILITES] Type RDV: {request.type_rdv}, Catégorie: {categorie}")
 
-    params = {
-        "start": date_debut,
-        "end": date_fin,
-        "newPatient": "1" if request.nouveau_patient else "0"
-    }
+        params = {
+            "start": date_debut,
+            "end": date_fin,
+            "newPatient": "1" if request.nouveau_patient else "0"
+        }
 
-    endpoint = f"/schedules/{DEFAULT_PRATICIEN_ID}/slots/{request.type_rdv}/"
-    result = await call_rdvdentiste("GET", endpoint, office_code, api_key, params)
+        endpoint = f"/schedules/{DEFAULT_PRATICIEN_ID}/slots/{request.type_rdv}/"
 
-    # Parser les créneaux avec filtrage strict par plages horaires
-    creneaux = []
-    creneaux_filtres = 0
-    slots = result.get("AvailableSlots", []) if isinstance(result, dict) else result
+        try:
+            result = await call_rdvdentiste("GET", endpoint, office_code, api_key, params)
+        except HTTPException as e:
+            print(f"[DISPONIBILITES] Erreur API rdvdentiste: {e.detail}")
+            return {
+                "success": False,
+                "message": f"Erreur lors de la consultation des disponibilités. Veuillez réessayer.",
+                "error_detail": str(e.detail)
+            }
 
-    for slot in slots:
-        start_time = slot.get("start", "")
-        if start_time:
-            date_part = start_time.split("T")[0]
-            time_part = start_time.split("T")[1][:5]
-            heure_code = time_part.replace(":", "")
+        # Parser les créneaux avec filtrage strict par plages horaires
+        creneaux = []
+        creneaux_filtres = 0
+        slots = result.get("AvailableSlots", []) if isinstance(result, dict) else result
 
-            # FILTRAGE STRICT: Appliquer si on a une catégorie (via code ou nom)
-            if categorie:
-                plages_categorie = PLAGES_HORAIRES.get(categorie, {}).get("plages", {})
-                date_obj = datetime.strptime(date_part, "%Y-%m-%d")
-                jour_semaine = date_obj.weekday()
+        # Si slots n'est pas une liste, retourner une erreur claire
+        if not isinstance(slots, list):
+            print(f"[DISPONIBILITES] Format de réponse inattendu: {result}")
+            return {
+                "success": False,
+                "message": "Format de réponse inattendu de l'API. Veuillez vérifier le type de RDV.",
+                "raw_response": str(result)[:500]
+            }
 
-                # Vérifier si le jour est autorisé
-                if jour_semaine not in plages_categorie:
-                    creneaux_filtres += 1
-                    continue
+        for slot in slots:
+            start_time = slot.get("start", "")
+            if start_time:
+                date_part = start_time.split("T")[0]
+                time_part = start_time.split("T")[1][:5]
+                heure_code = time_part.replace(":", "")
 
-                # Vérifier si l'heure est dans une des plages autorisées
-                heure_ok = False
-                for debut, fin in plages_categorie[jour_semaine]:
-                    if debut <= time_part <= fin:
-                        heure_ok = True
-                        break
+                # FILTRAGE STRICT: Appliquer si on a une catégorie (via code ou nom)
+                if categorie:
+                    plages_categorie = PLAGES_HORAIRES.get(categorie, {}).get("plages", {})
+                    date_obj = datetime.strptime(date_part, "%Y-%m-%d")
+                    jour_semaine = date_obj.weekday()
 
-                if not heure_ok:
-                    creneaux_filtres += 1
-                    continue
+                    # Vérifier si le jour est autorisé
+                    if jour_semaine not in plages_categorie:
+                        creneaux_filtres += 1
+                        continue
 
-            creneaux.append({
-                "date": date_part,
-                "heure": heure_code,
-                "heure_affichage": time_part.replace(":", "h")
-            })
+                    # Vérifier si l'heure est dans une des plages autorisées
+                    heure_ok = False
+                    for debut, fin in plages_categorie[jour_semaine]:
+                        if debut <= time_part <= fin:
+                            heure_ok = True
+                            break
 
-    if creneaux_filtres > 0:
-        print(f"[DISPONIBILITES] {creneaux_filtres} créneaux filtrés (hors plages autorisées pour {categorie})")
+                    if not heure_ok:
+                        creneaux_filtres += 1
+                        continue
 
-    return {
-        "success": True,
-        "type_rdv": request.type_rdv,
-        "type_rdv_nom": request.type_rdv_nom,
-        "categorie": categorie,
-        "periode": f"Du {date_debut} au {date_fin}",
-        "creneaux": creneaux,
-        "nombre_creneaux": len(creneaux),
-        "creneaux_filtres": creneaux_filtres,
-        "message": f"{len(creneaux)} créneaux disponibles (filtrés selon plages horaires)." if creneaux else "Aucun créneau disponible sur cette période pour ce type de RDV."
-    }
+                creneaux.append({
+                    "date": date_part,
+                    "heure": heure_code,
+                    "heure_affichage": time_part.replace(":", "h")
+                })
+
+        if creneaux_filtres > 0:
+            print(f"[DISPONIBILITES] {creneaux_filtres} créneaux filtrés (hors plages autorisées pour {categorie})")
+
+        return {
+            "success": True,
+            "type_rdv": request.type_rdv,
+            "type_rdv_nom": request.type_rdv_nom,
+            "categorie": categorie,
+            "periode": f"Du {date_debut} au {date_fin}",
+            "creneaux": creneaux,
+            "nombre_creneaux": len(creneaux),
+            "creneaux_filtres": creneaux_filtres,
+            "message": f"{len(creneaux)} créneaux disponibles (filtrés selon plages horaires)." if creneaux else "Aucun créneau disponible sur cette période pour ce type de RDV."
+        }
+
+    except Exception as e:
+        print(f"[DISPONIBILITES] Erreur inattendue: {str(e)}")
+        return {
+            "success": False,
+            "message": "Une erreur est survenue lors de la consultation des disponibilités.",
+            "error": str(e)
+        }
 
 
 # ----- 4. CRÉER UN RDV -----
