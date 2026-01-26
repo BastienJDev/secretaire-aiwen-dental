@@ -1,21 +1,29 @@
-# Configuration Synthflow/Fine-tuner - Secrétaire IA Dentiste
+# Configuration Synthflow/Fine-tuner - Aiwen Dental Studio
 
-## Étape 1 : Déployer sur Railway
+## Informations du Cabinet
 
-1. Créer un compte sur [Railway](https://railway.app)
-2. Connecter votre GitHub
-3. Créer un nouveau projet depuis ce repo
-4. **Ajouter les variables d'environnement** (onglet Variables) :
-   - `RDVDENTISTE_API_KEY` : Votre clé API rdvdentiste.net
-   - `RDVDENTISTE_OFFICE_CODE` : Votre Office Code (optionnel, sinon utilise la valeur par défaut)
-5. Railway déploiera automatiquement
-6. Récupérer l'URL (ex: `https://votre-app.up.railway.app`)
+- **Nom du cabinet**: Aiwen Dental Studio
+- **Praticien**: Dr Lavinia BIRIS
+- **ID Praticien**: LB
 
 ---
 
-## Étape 2 : Configurer les Custom Actions dans Synthflow
+## Etape 1 : Deployer sur Railway
 
-Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
+1. Creer un compte sur [Railway](https://railway.app)
+2. Connecter votre GitHub
+3. Creer un nouveau projet depuis ce repo
+4. **Ajouter les variables d'environnement** (onglet Variables) :
+   - `RDVDENTISTE_API_KEY` : `DYND-457AD3+21ZDZX-sdm3ISX`
+   - `RDVDENTISTE_OFFICE_CODE` : `100604704JWYKTPKJOOI`
+5. Railway deploiera automatiquement
+6. Recuperer l'URL (ex: `https://votre-app.up.railway.app`)
+
+---
+
+## Etape 2 : Configurer les Custom Actions dans Synthflow
+
+Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes :
 
 ---
 
@@ -26,10 +34,10 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 **Nom de l'action:** `rechercher_patient`
 
 **Description pour l'IA:**
-> Utilise cette action pour rechercher un patient existant dans le système. Tu peux chercher par nom, prénom, date de naissance ou téléphone. Utilise-la quand le patient dit qu'il est déjà venu au cabinet.
+> Utilise cette action pour rechercher un patient existant dans le systeme. Tu peux chercher par nom, prenom, date de naissance ou telephone. Utilise-la quand le patient dit qu'il est deja venu au cabinet.
 
 **Configuration API:**
-- **Méthode:** POST
+- **Methode:** POST
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/rechercher_patient`
 - **Headers:**
   - `Content-Type: application/json`
@@ -44,25 +52,17 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 }
 ```
 
-**Variables à créer:**
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| nom | Nom de famille du patient | "DUPONT" |
-| prenom | Prénom du patient | "Marie" |
-| date_naissance | Date de naissance format YYYY-MM-DD ou JJ/MM/AAAA | "1985-03-15" |
-| telephone | Numéro de téléphone mobile | "0612345678" |
-
 ---
 
-### Action 2 : Consulter les disponibilités
+### Action 2 : Consulter les disponibilites
 
 **Nom de l'action:** `consulter_disponibilites`
 
 **Description pour l'IA:**
-> Utilise cette action pour voir les créneaux disponibles. Demande d'abord au patient quel type de rendez-vous il souhaite et à partir de quelle date. Utilise les codes numériques pour le type de RDV.
+> Utilise cette action pour voir les creneaux disponibles. Demande d'abord au patient quel type de rendez-vous il souhaite et a partir de quelle date. Utilise les codes numeriques pour le type de RDV.
 
 **Configuration API:**
-- **Méthode:** POST
+- **Methode:** POST
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/consulter_disponibilites`
 - **Headers:**
   - `Content-Type: application/json`
@@ -73,31 +73,21 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
   "type_rdv": "<type_rdv>",
   "date_debut": "<date_debut>",
   "date_fin": "<date_fin>",
-  "nouveau_patient": "<nouveau_patient>",
-  "patient_id": "<patient_id>"
+  "nouveau_patient": "<nouveau_patient>"
 }
 ```
 
-**Variables à créer:**
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| type_rdv | **Code numérique** du type de RDV (voir tableau ci-dessous) | "27" |
-| date_debut | Date de début de recherche YYYY-MM-DD ou JJ/MM/AAAA | "2026-01-20" |
-| date_fin | Date de fin (optionnel, max 14 jours) | "2026-01-27" |
-| nouveau_patient | "true" si nouveau patient, "false" sinon | "true" |
-| patient_id | ID du patient si connu | "893" |
-
 ---
 
-### Action 3 : Créer un rendez-vous
+### Action 3 : Creer un rendez-vous
 
 **Nom de l'action:** `creer_rdv`
 
 **Description pour l'IA:**
-> Utilise cette action pour réserver un créneau une fois que le patient a choisi une date et une heure. Tu dois avoir toutes les informations du patient : nom, prénom, téléphone, et optionnellement email et date de naissance.
+> Utilise cette action pour reserver un creneau une fois que le patient a choisi une date et une heure. Tu dois avoir toutes les informations du patient : nom, prenom, telephone, et optionnellement email et date de naissance.
 
 **Configuration API:**
-- **Méthode:** POST
+- **Methode:** POST
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/creer_rdv`
 - **Headers:**
   - `Content-Type: application/json`
@@ -105,7 +95,6 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 **Body (JSON):**
 ```json
 {
-  "praticien_id": "<praticien_id>",
   "type_rdv": "<type_rdv>",
   "date": "<date>",
   "heure": "<heure>",
@@ -115,53 +104,31 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
   "email": "<email>",
   "date_naissance": "<date_naissance>",
   "nouveau_patient": "<nouveau_patient>",
-  "patient_id": "<patient_id>",
   "message": "<message>"
 }
 ```
-
-**Variables à créer:**
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| praticien_id | ID du praticien (généralement "MC") | "MC" |
-| type_rdv | **Code numérique** du type de RDV | "27" |
-| date | Date du RDV YYYY-MM-DD ou JJ/MM/AAAA | "2026-01-22" |
-| heure | Heure au format HHMM | "0930" |
-| nom | Nom du patient | "DUPONT" |
-| prenom | Prénom du patient | "Marie" |
-| telephone | Téléphone mobile | "+33612345678" |
-| email | Email du patient | "marie@email.com" |
-| date_naissance | Date de naissance | "1985-03-15" |
-| nouveau_patient | "true"/"false" | "true" |
-| patient_id | ID si patient existant | "" |
-| message | Message pour le praticien | "Douleur depuis 3 jours" |
 
 ---
 
 ### Action 4 : Voir les RDV d'un patient
 
-**Nom de l'action:** `voir_rdv_patient`
+**Nom de l'action:** `voir_rdv`
 
 **Description pour l'IA:**
-> Utilise cette action pour afficher tous les rendez-vous d'un patient. Tu dois d'abord avoir recherché le patient pour obtenir son ID.
+> Utilise cette action pour afficher tous les rendez-vous d'un patient en utilisant son numero de telephone.
 
 **Configuration API:**
-- **Méthode:** POST
-- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/voir_rdv_patient`
+- **Methode:** POST
+- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/voir_rdv`
 - **Headers:**
   - `Content-Type: application/json`
 
 **Body (JSON):**
 ```json
 {
-  "patient_id": "<patient_id>"
+  "telephone": "<telephone>"
 }
 ```
-
-**Variables à créer:**
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| patient_id | ID du patient obtenu via rechercher_patient | "893" |
 
 ---
 
@@ -170,10 +137,10 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 **Nom de l'action:** `annuler_rdv`
 
 **Description pour l'IA:**
-> Utilise cette action pour annuler un rendez-vous existant. Tu dois d'abord récupérer la liste des RDV du patient pour obtenir l'ID du RDV à annuler.
+> Utilise cette action pour annuler un rendez-vous existant. Utilise le telephone du patient pour retrouver ses RDV.
 
 **Configuration API:**
-- **Méthode:** POST
+- **Methode:** POST
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/annuler_rdv`
 - **Headers:**
   - `Content-Type: application/json`
@@ -181,190 +148,195 @@ Dans votre dashboard Synthflow/Fine-tuner, créez les actions suivantes :
 **Body (JSON):**
 ```json
 {
-  "rdv_id": "<rdv_id>"
+  "telephone": "<telephone>",
+  "date_rdv": "<date_rdv>"
 }
 ```
 
-**Variables à créer:**
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| rdv_id | ID du RDV à annuler | "appt_456" |
-
 ---
 
-## Actions informatives (connaissances du cabinet)
-
-### Action 6 : Obtenir les horaires du cabinet
-
-**Nom de l'action:** `info_horaires`
-
-**Description pour l'IA:**
-> Utilise cette action quand le patient demande les horaires d'ouverture du cabinet ou quand il veut savoir quand il peut venir pour un certain type de soin.
-
-**Configuration API:**
-- **Méthode:** GET
-- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/info/horaires`
-
-**Pas de body ni de variables nécessaires.**
-
----
-
-### Action 7 : Obtenir les types de RDV disponibles
-
-**Nom de l'action:** `info_types_rdv`
-
-**Description pour l'IA:**
-> Utilise cette action pour connaître tous les types de rendez-vous proposés par le cabinet avec leurs durées et plages horaires. Utile quand le patient demande ce que le cabinet propose.
-
-**Configuration API:**
-- **Méthode:** GET
-- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/info/types_rdv`
-
-**Pas de body ni de variables nécessaires.**
-
----
-
-### Action 8 : Suggérer un type de RDV
+### Action 6 : Suggerer un type de RDV
 
 **Nom de l'action:** `suggerer_type_rdv`
 
 **Description pour l'IA:**
-> Utilise cette action quand le patient décrit son problème (mal de dents, besoin de nettoyage, etc.) mais ne sait pas quel type de RDV prendre. L'action analysera le motif et suggérera le type de RDV approprié.
+> Utilise cette action quand le patient decrit son probleme mais ne sait pas quel type de RDV prendre.
 
 **Configuration API:**
-- **Méthode:** POST
+- **Methode:** GET
 - **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/info/suggerer_type_rdv?motif=<motif>`
-
-**Variables à créer:**
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| motif | Description du problème par le patient | "j'ai mal à une dent depuis 2 jours" |
 
 ---
 
-## Étape 3 : Configurer le prompt système de l'agent
+## Etape 3 : Configurer le prompt systeme de l'agent
 
-Voici un exemple de prompt système pour votre secrétaire IA :
+Voici le prompt systeme pour la secretaire IA d'Aiwen Dental Studio :
 
 ```
-Tu es Sophie, secrétaire virtuelle du cabinet dentaire [NOM DU CABINET].
+Tu es la secretaire virtuelle du cabinet Aiwen Dental Studio du Dr Lavinia BIRIS.
 
-Ton rôle :
+Ton role :
 - Accueillir chaleureusement les patients
-- Les aider à prendre, modifier ou annuler des rendez-vous
-- Répondre aux questions sur les horaires et types de consultations
+- Les aider a prendre, modifier ou annuler des rendez-vous
+- Repondre aux questions sur les horaires et types de consultations
 
 Comportement :
 - Sois professionnelle mais chaleureuse
 - Pose les questions une par une, ne submerge pas le patient
-- Confirme toujours les informations avant de créer un RDV
+- Confirme toujours les informations avant de creer un RDV
 - Si tu ne peux pas aider, propose de laisser un message pour le cabinet
 
 Flux typique pour un nouveau RDV :
-1. Demande si le patient est déjà venu au cabinet
-2. Si oui, recherche-le avec nom + prénom + téléphone
+1. Demande si le patient est deja venu au cabinet
+2. Si oui, recherche-le avec nom + prenom + telephone
 3. Demande le motif de consultation (utilise suggerer_type_rdv si besoin)
-4. Propose les créneaux disponibles
-5. Confirme les informations et crée le RDV
+4. Propose les creneaux disponibles
+5. Confirme les informations et cree le RDV
 6. Rappelle au patient qu'il recevra une confirmation
 
-Types de RDV disponibles (avec codes numériques et durées) :
-- 84 : Urgence dentaire (20 min)
-- 27 : Consultation générale (20 min)
-- 37 : Bilan complet CDC/Esthétique/Ortho/Paro (60 min)
-- 45 : Détartrage et maintenance (40 min)
-- 75 : Séance de prophylaxie (45 min)
-- 23 : Blanchiment dentaire (80 min)
-- 36 : Soins conservateurs composites (30 min)
-- 30 : Prothèses (60 min) - patients existants uniquement
-- 20 : Collage facettes (30 min)
-- 21 : Inlay IRM empreinte optique (40 min)
-- 69 : Fin Invisalign (60 min)
-
 Horaires du cabinet :
-- Lundi : 09h30-19h30
-- Mardi : 09h30-19h30
-- Mercredi : FERMÉ
-- Jeudi : 09h30-19h30
-- Vendredi : 09h30-19h30
-- Samedi : 09h00-15h00
-- Dimanche : FERMÉ
+- Lundi : 08h50-17h45
+- Mardi : 08h50-17h45
+- Mercredi : 08h50-17h45
+- Jeudi : 08h50-17h45
+- Vendredi : FERME
+- Samedi : FERME
+- Dimanche : FERME
 
-Note : Certains types de RDV ne sont disponibles que sur certaines plages horaires.
-Utilise l'action info_horaires pour plus de détails.
+Note: Le premier RDV est a 08h50 (09h00 sur le planning), le dernier RDV a 17h00 (17h10 sur le planning).
+
+Regles de planification importantes :
+- Nouveaux patients : Preferer le JEUDI, surtout l'apres-midi
+- Gros RDV (Empreinte, Endo, MEOPA) : Matin uniquement, Mardi-Jeudi de preference
+- Extractions/Chirurgie : TOUJOURS le matin
+- Controles et Poses : Lundi matin ou entre 12h-14h tous les jours
+- Controles/Bilans : Aussi possibles en fin de journee (16h-17h)
+
+Types de RDV disponibles (avec codes numeriques) :
+
+SOINS COURANTS :
+- 4 : Controle (20 min)
+- 34 : Bilan (30 min)
+- 35 : Detartrage (20 min)
+- 8 : Radio (20 min)
+- 12 : Reparation (20 min)
+- 15 : Sealent (20 min)
+
+URGENCES :
+- 36 : Urgence patient en cours (20 min)
+- 37 : Urgence patient du cabinet (20 min)
+- 38 : Urgence externe (20 min)
+- 75 : Douleur (20 min)
+- 82 : Dent cassee (20 min)
+- 83 : Couronne a resceller (20 min)
+
+SOINS LONGS (matin uniquement) :
+- 7 : Empreinte (50 min)
+- 10 : Endo (60 min)
+- 11 : Reendo (60 min)
+- 14 : Soins mylolyse (50 min)
+- 102 : MEOPA (60 min)
+
+EXTRACTIONS (matin uniquement) :
+- 6 : Extraction (20 min)
+- 47 : Extraction dent lacteale (20 min)
+- 48 : Extraction dent definitive (30 min)
+
+POSES (lundi matin ou 12h-14h) :
+- 13 : Pose (20 min)
+- 43 : Pose appareil amovible (10 min)
+- 73 : Pose reparation (10 min)
+
+NOUVEAUX PATIENTS (jeudi de preference) :
+- 84 : Nouveau patient autre (30 min)
+- 70 : Nouveau patient recommande (30 min)
+
+AUTRES :
+- 9 : Rebasage (20 min)
+- 17 : Empreinte gouttiere bruxisme (10 min)
+- 40 : Empreinte gouttiere blanchiment (20 min)
+- 55 : Motivation au brossage (10 min)
+- 57 : Obturation de chambre (20 min)
+- 65 : Presentation plan de traitement (20 min)
+- 67 : Surfacage (30 min)
+- 69 : Essayage (10 min)
+- 71 : Empreinte II + Occlusion (20 min)
+- 77 : Probleme DDS (20 min)
+- 93 : Scanner (20 min)
+- 94 : Fils de suture (10 min)
+
+Format heure : HHMM (ex: "0850" pour 8h50, "1400" pour 14h00)
 ```
 
 ---
 
-## Étape 4 : Endpoints utilitaires (pour tests)
+## Referentiel des types de RDV (Codes API)
 
-### Lister les praticiens
-```
-GET https://VOTRE-URL-RAILWAY.up.railway.app/praticiens
-```
+**IMPORTANT : Utiliser les codes numeriques pour les appels API**
 
-### Lister les types de RDV (depuis l'API rdvdentiste)
-```
-GET https://VOTRE-URL-RAILWAY.up.railway.app/types_rdv
-```
-
-### Infos types RDV cabinet (local)
-```
-GET https://VOTRE-URL-RAILWAY.up.railway.app/info/types_rdv
-```
-
-### Infos horaires cabinet (local)
-```
-GET https://VOTRE-URL-RAILWAY.up.railway.app/info/horaires
-```
-
-### Catégories de RDV
-```
-GET https://VOTRE-URL-RAILWAY.up.railway.app/info/categories
-```
-
----
-
-## Référentiel des types de RDV (Codes API)
-
-**IMPORTANT : Utiliser les codes numériques pour les appels API**
-
-| Code API | Nom | Durée | Nouveaux patients |
-|----------|-----|-------|-------------------|
-| 84 | URGENCE | 20 min | Oui |
-| 27 | CONSULTATION | 20 min | Oui |
-| 37 | BILAN CDC/ESTHETIQUE/ORTHO/PARO | 60 min | Oui |
-| 45 | DETARTRAGE et MAINTENANCE | 40 min | Oui |
-| 75 | SEANCE DE PROPHYLAXIE INITIALE | 45 min | Oui (âge 3 ans) |
-| 23 | ECLAIRCISSEMENT fauteuil | 80 min | Oui |
-| 36 | SOINS CONSERVATEURS COMPOSITES ITK | 30 min | Oui |
-| 30 | PROTHESES DEPOSE/PREP/EMP/PROV | 60 min | Non (existants) |
-| 20 | COLLAGE FACETTE | 30 min | Oui |
-| 21 | INLAY IRM EMP OPTIQUE | 40 min | Oui |
-| 69 | FIN INVISALIGN/POSE FIL/EMP/PHOTO | 60 min | Oui |
+| Code | Nom | Duree | Plage horaire |
+|------|-----|-------|---------------|
+| 4 | CONTROLE | 20 min | Lundi matin, 12h-14h, fin de journee |
+| 6 | EXTRACTION | 20 min | Matin uniquement |
+| 7 | EMPREINTE | 50 min | Matin uniquement |
+| 8 | Radio | 20 min | Toute la journee |
+| 9 | REBASAGE | 20 min | Toute la journee |
+| 10 | ENDO | 60 min | Matin uniquement |
+| 11 | REENDO | 60 min | Matin uniquement |
+| 12 | Reparation | 20 min | Toute la journee |
+| 13 | POSE | 20 min | Lundi matin, 12h-14h |
+| 14 | SOINS | 50 min | Matin uniquement |
+| 15 | SEALENT | 20 min | Toute la journee |
+| 17 | EMP GOUTIERE BRUXISME | 10 min | Toute la journee |
+| 34 | BILAN | 30 min | Lundi matin, 12h-14h, fin de journee |
+| 35 | DET | 20 min | Lundi matin, 12h-14h, fin de journee |
+| 36 | URGENCE PATIENT EN COURS | 20 min | Toute la journee |
+| 37 | URGENCE PATIENT DU CABINET | 20 min | Toute la journee |
+| 38 | URGENCE EXTERNE | 20 min | Toute la journee |
+| 40 | EMP GOUT BLANCHIMENT | 20 min | Toute la journee |
+| 43 | POSE APPAREIL AMOVIBLE | 10 min | Lundi matin, 12h-14h |
+| 47 | EXTRACTION DENT LACTEALE | 20 min | Matin uniquement |
+| 48 | EXTRACTION DENT DEFINITIVE | 30 min | Matin uniquement |
+| 55 | MOTIVATION AU BROSSAGE | 10 min | Toute la journee |
+| 57 | OBTURATION DE CHAMBRE | 20 min | Toute la journee |
+| 65 | PRESENTATION PLAN TRAITEMENT | 20 min | Toute la journee |
+| 67 | SURFACAGE | 30 min | Toute la journee |
+| 69 | ESSAYAGE | 10 min | Toute la journee |
+| 70 | NOUVEAU PATIENT RECOMMANDE | 30 min | Jeudi (surtout apres-midi) |
+| 71 | EMP II + OCCLUSION | 20 min | Toute la journee |
+| 73 | POSE REPARATION | 10 min | Lundi matin, 12h-14h |
+| 75 | DOULEUR | 20 min | Toute la journee |
+| 77 | PROBLEME DDS | 20 min | Toute la journee |
+| 82 | DENT CASSEE | 20 min | Toute la journee |
+| 83 | COURONNE A RESCELLER | 20 min | Toute la journee |
+| 84 | NOUVEAU PATIENT AUTRE | 30 min | Jeudi (surtout apres-midi) |
+| 93 | SCANNER | 20 min | Toute la journee |
+| 94 | FILS DE SUTURE | 10 min | Toute la journee |
+| 102 | MEOPA | 60 min | Matin uniquement |
 
 ---
 
-## Statut des actions API
+## Regles de planification
 
-| Action | Status | Notes |
-|--------|--------|-------|
-| consulter_disponibilites | ✅ OK | Retourne les créneaux disponibles |
-| creer_rdv | ✅ OK | Crée et confirme le RDV |
-| rechercher_patient | ✅ OK | Retourne patient_id si trouvé |
-| voir_rdv_patient | ✅ OK | Liste les RDV du patient |
-| annuler_rdv | ✅ OK | Annule un RDV existant |
-| info_horaires | ✅ OK | Données locales |
-| info_types_rdv | ✅ OK | Données locales |
-| suggerer_type_rdv | ✅ OK | Suggère le type selon motif |
+| Categorie | Jours | Horaires |
+|-----------|-------|----------|
+| Gros RDV (>30min) | Lundi-Jeudi | 08h50-12h00 (matin) |
+| Extraction/Chirurgie | Lundi-Jeudi | 08h50-12h00 (matin) |
+| Controles/Bilans | Lundi-Jeudi | Lundi matin, 12h-14h, 16h-17h |
+| Poses | Lundi-Jeudi | Lundi matin, 12h-14h |
+| Nouveaux patients | Jeudi | 12h00-17h00 (surtout apres-midi) |
+| Urgences | Lundi-Jeudi | 08h50-17h00 |
+| Standard | Lundi-Jeudi | 08h50-17h00 |
 
 ---
 
 ## Notes importantes
 
-- **API Key** : Stockée en variable d'environnement sur Railway, pas besoin de la passer dans les headers Synthflow
-- **Office Code** : Également en variable d'environnement
+- **Office Code** : `100604704JWYKTPKJOOI`
+- **API Key** : `DYND-457AD3+21ZDZX-sdm3ISX`
+- **Praticien ID** : `LB` (Dr Lavinia BIRIS)
 - **Dates** : L'API accepte les formats YYYY-MM-DD et JJ/MM/AAAA (conversion automatique)
-- **Praticien ID** : Par défaut "MC" (Dr Marie-Hélène CHRETIEN-FRANCESCHINI)
-- **Créneaux** : Toujours consulter les disponibilités AVANT de créer un RDV pour avoir un créneau valide
-- **Format heure** : HHMM (ex: "0930" pour 09h30, "1430" pour 14h30)
+- **Format heure** : HHMM (ex: "0850" pour 8h50, "1400" pour 14h00)
+- **Cabinet ferme** : Vendredi, Samedi, Dimanche
+- **Premier RDV** : 08h50 (09h00 sur le planning)
+- **Dernier RDV** : 17h00 (17h10 sur le planning)

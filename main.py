@@ -1,6 +1,10 @@
 """
-Secrétaire IA - Middleware pour rdvdentiste.net / Logosw
+Secrétaire IA - Aiwen Dental Studio
+Middleware pour rdvdentiste.net / Logosw
 Backend FastAPI pour Synthflow Custom Actions
+
+Cabinet: Aiwen Dental Studio
+Praticien: Dr Lavinia BIRIS
 
 Version: 2.0.0
 """
@@ -18,15 +22,15 @@ import os
 # ============== CONFIGURATION ==============
 
 app = FastAPI(
-    title="Secrétaire IA Dentiste",
-    description="Middleware pour connecter Synthflow à l'API rdvdentiste.net",
+    title="Secrétaire IA - Aiwen Dental Studio",
+    description="Middleware pour connecter Synthflow à l'API rdvdentiste.net - Cabinet Aiwen Dental Studio",
     version="2.0.0"
 )
 
 RDVDENTISTE_BASE_URL = "https://www.rdvdentiste.net/api"
-DEFAULT_OFFICE_CODE = os.getenv("RDVDENTISTE_OFFICE_CODE", "0501463005IMZDB742BK")
+DEFAULT_OFFICE_CODE = os.getenv("RDVDENTISTE_OFFICE_CODE", "100604704JWYKTPKJOOI")
 DEFAULT_API_KEY = os.getenv("RDVDENTISTE_API_KEY", "DYND-457AD3+21ZDZX-sdm3ISX")
-DEFAULT_PRATICIEN_ID = "MC"
+DEFAULT_PRATICIEN_ID = "LB"
 
 # Fichier pour stocker les RDV annulés (car l'API rdvdentiste.net ne met pas à jour le statut)
 RDV_ANNULES_FILE = "/tmp/rdv_annules.json"
@@ -62,94 +66,123 @@ def est_rdv_annule(rdv_id: str) -> bool:
 
 
 # ============== PLAGES HORAIRES PAR TYPE DE RDV ==============
+# Aiwen Dental Studio - Dr Lavinia BIRIS
+# Horaires: Lundi-Jeudi 08:50-17:45 (premier RDV 08:50, dernier RDV donné 17:00)
+# Vendredi-Dimanche: FERMÉ
 
 # Mapping direct code -> catégorie (pour filtrage automatique sans avoir besoin du nom)
 CODE_TO_CATEGORIE = {
-    # CONSULTATION / URGENCE / BILAN
-    "84": "CONSULTATION_URGENCE_BILAN",  # URGENCE
-    "27": "CONSULTATION_URGENCE_BILAN",  # CONSULTATION
-    "37": "CONSULTATION_URGENCE_BILAN",  # BILAN CDC/ESTHETIQUE/ORTHO/PARO
+    # GROS RDV (>30min) - Matin uniquement, Lundi-Jeudi (surtout Mardi-Jeudi)
+    "7": "GROS_RDV_MATIN",      # EMPREINTE (50min)
+    "10": "GROS_RDV_MATIN",     # ENDO (60min)
+    "11": "GROS_RDV_MATIN",     # REENDO (60min)
+    "14": "GROS_RDV_MATIN",     # SOINS (50min)
+    "102": "GROS_RDV_MATIN",    # MEOPA (60min)
 
-    # DETARTRAGE / MAINTENANCE
-    "45": "DETARTRAGE_MAINTENANCE",  # DETARTRAGE ET MAINTENANCE
-    "75": "DETARTRAGE_MAINTENANCE",  # SEANCE DE PROPHYLAXIE
+    # EXTRACTION / CHIRURGIE - Toujours le matin
+    "6": "EXTRACTION_CHIRURGIE",    # EXTRACTION (20min)
+    "47": "EXTRACTION_CHIRURGIE",   # EXTRACTION DENT LACTEALE (20min)
+    "48": "EXTRACTION_CHIRURGIE",   # EXTRACTION DENT DEFINITIVE (30min)
+    "90": "EXTRACTION_CHIRURGIE",   # IMPLANT
+    "99": "EXTRACTION_CHIRURGIE",   # RESECTION APICALE
 
-    # FACETTES / PROTHESE / POSE / EMPREINTE
-    "20": "FACETTES_PROTHESE_POSE",  # COLLAGE FACETTE
-    "21": "FACETTES_PROTHESE_POSE",  # INLAY IRM EMP OPTIQUE
-    "23": "FACETTES_PROTHESE_POSE",  # ECLAIRCISSEMENT FAUTEUIL
-    "30": "FACETTES_PROTHESE_POSE",  # PROTHESES DEPOSE/PREP/EMP/PROV
-    "36": "FACETTES_PROTHESE_POSE",  # SOINS CONSERVATEURS COMPOSITES ITK
+    # CONTROLE / BILAN - Lundi matin, 12h-14h, ou fin de journée (16h-17h)
+    "4": "CONTROLE_BILAN",      # CONTROLE (20min)
+    "5": "CONTROLE_BILAN",      # CONTROLE+DETARTRAGE
+    "34": "CONTROLE_BILAN",     # BILAN (30min)
+    "35": "CONTROLE_BILAN",     # DET (20min)
+    "39": "CONTROLE_BILAN",     # BILAN BUCCO DENTAIRE
+    "46": "CONTROLE_BILAN",     # DET BBD
+    "96": "CONTROLE_BILAN",     # BILAN PARO
 
-    # LITHOTRITIE
-    "46": "LITHOTRITIE",  # LITHOTRITIE
+    # POSE - Lundi matin ou 12h-14h tous les jours
+    "13": "POSE",               # POSE (20min)
+    "43": "POSE",               # POSE APPAREIL AMOVIBLE (10min)
+    "73": "POSE",               # POSE REPARATION (10min)
+    "44": "POSE",               # POSE COURONNE CERAMIQUE
+    "51": "POSE",               # POSE GOUTTIERE FLUOREE
+    "52": "POSE",               # POSE INLAY CORE
+    "68": "POSE",               # POSE INLAY RESINE COMPOSITE
 
-    # INVISALIGN / ODF
-    "69": "INVISALIGN",  # FIN INVISALIGN
+    # NOUVEAU PATIENT - Jeudi, surtout après-midi
+    "70": "NOUVEAU_PATIENT",    # NOUVEAU PATIENT RECOMMANDE (30min)
+    "84": "NOUVEAU_PATIENT",    # NOUVEAU PATIENT AUTRE (30min)
 
-    # CHIRURGIE (codes à confirmer)
-    "51": "CHIRURGIE",  # IMPLANT/GREFFE
+    # URGENCE - Prioritaire, toute la journée
+    "36": "URGENCE",            # URGENCE PATIENT EN COURS (20min)
+    "37": "URGENCE",            # URGENCE PATIENT DU CABINET (20min)
+    "38": "URGENCE",            # URGENCE EXTERNE AU CABINET (20min)
+    "75": "URGENCE",            # DOULEUR (20min)
+    "82": "URGENCE",            # DENT CASSEE (20min)
+    "83": "URGENCE",            # COURONNE A RESCELLER (20min)
+    "85": "URGENCE",            # PROVISOIRE A REFIXER
+
+    # STANDARD - Pas de restriction particulière
+    # Tous les autres codes: 8, 9, 12, 15, 17, 40, 55, 57, 65, 67, 69, 71, 77, 93, 94...
 }
 
 # Mapping des catégories avec leurs mots-clés et plages horaires
 # Jours: 0=Lundi, 1=Mardi, 2=Mercredi, 3=Jeudi, 4=Vendredi, 5=Samedi, 6=Dimanche
+# Cabinet fermé Vendredi, Samedi, Dimanche
 PLAGES_HORAIRES = {
-    "CONSULTATION_URGENCE_BILAN": {
-        "mots_cles": ["URGENCE", "BILAN", "CONSULTATION"],
+    "GROS_RDV_MATIN": {
+        "mots_cles": ["EMPREINTE", "ENDO", "REENDO", "MEOPA", "MYLOLYSE"],
         "plages": {
-            0: [("09:30", "14:00")],  # Lundi
-            1: [("17:00", "19:30")],  # Mardi
-            3: [("17:00", "19:30")],  # Jeudi
-            4: [("09:30", "14:00")],  # Vendredi
-            5: [("09:00", "15:00")],  # Samedi
+            0: [("08:50", "12:00")],  # Lundi matin
+            1: [("08:50", "12:00")],  # Mardi matin (privilégié)
+            2: [("08:50", "12:00")],  # Mercredi matin
+            3: [("08:50", "12:00")],  # Jeudi matin (privilégié)
         }
     },
-    "DETARTRAGE_MAINTENANCE": {
-        "mots_cles": ["DETARTRAGE", "MAINTENANCE", "PROPHYLAXIE"],
+    "EXTRACTION_CHIRURGIE": {
+        "mots_cles": ["EXTRACTION", "IMPLANT", "GREFFE", "RESECTION", "APICALE", "CHIRURGIE"],
         "plages": {
-            0: [("09:30", "14:00")],  # Lundi
-            1: [("17:00", "19:30")],  # Mardi
-            4: [("09:30", "14:00")],  # Vendredi
-            5: [("09:00", "15:00")],  # Samedi
+            0: [("08:50", "12:00")],  # Lundi matin
+            1: [("08:50", "12:00")],  # Mardi matin
+            2: [("08:50", "12:00")],  # Mercredi matin
+            3: [("08:50", "12:00")],  # Jeudi matin
         }
     },
-    "FACETTES_PROTHESE_POSE": {
-        "mots_cles": ["FACETTE", "PROTHESE", "INLAY", "EVALUATION", "PHOTO", "ESSAYAGE",
-                     "SOINS CONSERVATEURS", "COMPOSITE", "ECLAIRCISSEMENT"],
+    "CONTROLE_BILAN": {
+        "mots_cles": ["CONTROLE", "BILAN", "DET", "DETARTRAGE"],
         "plages": {
-            0: [("14:00", "19:30")],  # Lundi
-            1: [("09:30", "17:00")],  # Mardi
-            3: [("09:30", "19:30")],  # Jeudi
-            4: [("14:00", "19:30")],  # Vendredi
+            0: [("08:50", "12:00"), ("12:00", "14:00"), ("16:00", "17:00")],  # Lundi
+            1: [("12:00", "14:00"), ("16:00", "17:00")],  # Mardi
+            2: [("12:00", "14:00"), ("16:00", "17:00")],  # Mercredi
+            3: [("12:00", "14:00"), ("16:00", "17:00")],  # Jeudi
         }
     },
-    "LITHOTRITIE": {
-        "mots_cles": ["LITHOTRITIE"],
+    "POSE": {
+        "mots_cles": ["POSE", "COLLAGE"],
         "plages": {
-            0: [("09:30", "14:00")],  # Lundi
-            1: [("17:00", "19:30")],  # Mardi
-            4: [("09:30", "14:00")],  # Vendredi
+            0: [("08:50", "12:00"), ("12:00", "14:00")],  # Lundi matin + midi
+            1: [("12:00", "14:00")],  # Mardi midi
+            2: [("12:00", "14:00")],  # Mercredi midi
+            3: [("12:00", "14:00")],  # Jeudi midi
         }
     },
-    "INVISALIGN": {
-        "mots_cles": ["INVISALIGN", "CONTENTION", "FIL NUMERIC", "ORTHO"],
+    "NOUVEAU_PATIENT": {
+        "mots_cles": ["NOUVEAU PATIENT", "PREMIERE VISITE"],
         "plages": {
-            0: [("18:00", "19:30")],  # Lundi
-            1: [("09:30", "12:00")],  # Mardi
-            3: [("09:30", "11:00"), ("18:00", "19:30")],  # Jeudi (2 plages)
-            4: [("18:00", "19:30")],  # Vendredi
+            3: [("12:00", "17:00")],  # Jeudi (surtout après-midi)
         }
     },
-    "CHIRURGIE": {
-        "mots_cles": ["EXTRACTION", "IMPLANT", "GREFFE", "RESECTION", "APICALE"],
+    "URGENCE": {
+        "mots_cles": ["URGENCE", "DOULEUR", "CASSE", "RESCELLER", "REFIXER"],
         "plages": {
-            # À confirmer - pour l'instant on autorise tout
-            0: [("09:00", "19:30")],
-            1: [("09:00", "19:30")],
-            2: [("09:00", "19:30")],
-            3: [("09:00", "19:30")],
-            4: [("09:00", "19:30")],
-            5: [("09:00", "15:00")],
+            0: [("08:50", "17:00")],  # Lundi toute la journée
+            1: [("08:50", "17:00")],  # Mardi toute la journée
+            2: [("08:50", "17:00")],  # Mercredi toute la journée
+            3: [("08:50", "17:00")],  # Jeudi toute la journée
+        }
+    },
+    "STANDARD": {
+        "mots_cles": [],
+        "plages": {
+            0: [("08:50", "17:00")],  # Lundi
+            1: [("08:50", "17:00")],  # Mardi
+            2: [("08:50", "17:00")],  # Mercredi
+            3: [("08:50", "17:00")],  # Jeudi
         }
     },
 }
@@ -158,7 +191,7 @@ PLAGES_HORAIRES = {
 def trouver_categorie_rdv(type_rdv_nom: str) -> str:
     """Trouve la catégorie d'un type de RDV basé sur son nom"""
     if not type_rdv_nom:
-        return None
+        return "STANDARD"
 
     type_upper = type_rdv_nom.upper()
 
@@ -167,15 +200,16 @@ def trouver_categorie_rdv(type_rdv_nom: str) -> str:
             if mot_cle in type_upper:
                 return categorie
 
-    return None  # Type non trouvé dans le mapping
+    return "STANDARD"  # Type non trouvé, on utilise les plages standard
 
 
 def est_creneau_autorise(type_rdv_nom: str, date_str: str, heure_str: str) -> bool:
     """
     Vérifie si un créneau est autorisé pour un type de RDV donné.
+    Cabinet Aiwen Dental Studio: Lundi-Jeudi 08:50-17:45
 
     Args:
-        type_rdv_nom: Nom du type de RDV (ex: "URGENCE", "CONSULTATION")
+        type_rdv_nom: Nom du type de RDV (ex: "URGENCE", "CONTROLE")
         date_str: Date au format YYYY-MM-DD
         heure_str: Heure au format HH:MM ou HHMM
 
@@ -183,11 +217,6 @@ def est_creneau_autorise(type_rdv_nom: str, date_str: str, heure_str: str) -> bo
         True si le créneau est autorisé, False sinon
     """
     categorie = trouver_categorie_rdv(type_rdv_nom)
-
-    if not categorie:
-        # Type inconnu, on autorise par défaut
-        print(f"[PLAGES] Type '{type_rdv_nom}' non mappé, créneau autorisé par défaut")
-        return True
 
     # Parser la date pour obtenir le jour de la semaine
     try:
@@ -197,12 +226,17 @@ def est_creneau_autorise(type_rdv_nom: str, date_str: str, heure_str: str) -> bo
         print(f"[PLAGES] Date invalide: {date_str}")
         return True  # En cas d'erreur, on autorise
 
+    # Cabinet fermé Vendredi, Samedi, Dimanche
+    if jour_semaine >= 4:  # 4=Vendredi, 5=Samedi, 6=Dimanche
+        print(f"[PLAGES] Cabinet fermé le jour {jour_semaine}")
+        return False
+
     # Normaliser l'heure en HH:MM
     if len(heure_str) == 4 and ":" not in heure_str:
         heure_str = f"{heure_str[:2]}:{heure_str[2:]}"
 
-    # Vérifier si le jour est autorisé
-    plages_jour = PLAGES_HORAIRES[categorie]["plages"].get(jour_semaine)
+    # Vérifier si le jour est autorisé pour cette catégorie
+    plages_jour = PLAGES_HORAIRES.get(categorie, PLAGES_HORAIRES["STANDARD"])["plages"].get(jour_semaine)
     if not plages_jour:
         print(f"[PLAGES] {type_rdv_nom} -> {categorie}: jour {jour_semaine} non autorisé")
         return False
@@ -449,7 +483,7 @@ class CreerRdvRequest(BaseModel):
 @app.get("/")
 async def root():
     """Health check"""
-    return {"status": "ok", "service": "Secrétaire IA Dentiste", "version": "2.0.0"}
+    return {"status": "ok", "service": "Secrétaire IA - Aiwen Dental Studio", "cabinet": "Aiwen Dental Studio", "praticien": "Dr Lavinia BIRIS", "version": "2.0.0"}
 
 
 # ----- 1. VOIR LES RDV D'UN PATIENT (par téléphone) -----
@@ -1074,17 +1108,23 @@ async def suggerer_type_rdv(
     # Mapping des mots-clés vers les types de RDV
     suggestions = []
 
-    # Mots-clés pour différents types de soins
+    # Mots-clés pour différents types de soins - Aiwen Dental Studio
     mappings = {
-        "urgence": ["urgence", "douleur", "mal", "cassé", "abcès", "gonflement", "saigne"],
-        "detartrage": ["détartrage", "detartrage", "nettoyage", "tartre", "hygiène"],
-        "consultation": ["consultation", "contrôle", "visite", "check", "bilan", "nouveau patient", "première visite"],
+        "urgence": ["urgence", "douleur", "mal", "cassé", "abcès", "gonflement", "saigne", "resceller"],
+        "controle": ["contrôle", "controle", "visite", "check", "suivi"],
+        "bilan": ["bilan", "première visite", "nouveau patient", "examen complet"],
+        "detartrage": ["détartrage", "detartrage", "nettoyage", "tartre", "hygiène", "det"],
         "extraction": ["extraction", "arracher", "enlever dent", "retirer"],
+        "endo": ["dévitalisation", "devitalisation", "canal", "racine", "endo"],
+        "empreinte": ["empreinte", "moulage"],
+        "pose": ["pose", "poser"],
+        "reparation": ["réparation", "reparation", "réparer"],
+        "soins": ["soins", "soin"],
         "couronne": ["couronne", "prothèse", "bridge"],
         "implant": ["implant"],
-        "blanchiment": ["blanchiment", "blanchir", "éclaircissement"],
-        "carie": ["carie", "cavité", "trou"],
-        "devitalisation": ["dévitalisation", "devitalisation", "canal", "racine"],
+        "blanchiment": ["blanchiment", "blanchir", "éclaircissement", "gouttière blanchiment"],
+        "scanner": ["scanner", "radio", "panoramique"],
+        "surfacage": ["surfaçage", "surfacage", "paro"],
     }
 
     # Trouver le type suggéré basé sur le motif

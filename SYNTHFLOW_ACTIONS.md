@@ -1,4 +1,10 @@
-# Configuration des Custom Actions Synthflow
+# Configuration des Custom Actions Synthflow - Aiwen Dental Studio
+
+## Informations
+
+- **Cabinet**: Aiwen Dental Studio
+- **Praticien**: Dr Lavinia BIRIS
+- **ID Praticien**: LB
 
 ## URL de base
 ```
@@ -119,7 +125,7 @@ https://votre-app.railway.app
 ```
 
 **Variables utilisees:**
-- `{type_rdv}` - Code du type de RDV (ex: "84" pour consultation)
+- `{type_rdv}` - Code du type de RDV (ex: "4" pour controle, "10" pour endo)
 - `{date_debut}` - Date de debut de recherche (format YYYY-MM-DD)
 - `nouveau_patient` - true/false
 
@@ -164,7 +170,7 @@ https://votre-app.railway.app
 **Variables utilisees:**
 - `{type_rdv}` - Code du type de RDV
 - `{date}` - Date du RDV (format YYYY-MM-DD)
-- `{heure}` - Heure du RDV (format HHMM, ex: "0930" pour 9h30)
+- `{heure}` - Heure du RDV (format HHMM, ex: "0850" pour 8h50)
 - `{nom}` - Nom du patient
 - `{prenom}` - Prenom du patient
 - `{user_phone_number}` - Telephone (automatique)
@@ -228,6 +234,27 @@ https://votre-app.railway.app
 
 ---
 
+## 7. Suggerer un type de RDV
+
+**Endpoint:** `GET /info/suggerer_type_rdv`
+
+**Description:** Suggere le type de RDV adapte au motif du patient.
+
+### Configuration Synthflow:
+
+**Name:** `suggerer_type_rdv`
+
+**Description:** Suggere le type de RDV selon le motif du patient
+
+**URL:** `https://votre-app.railway.app/info/suggerer_type_rdv?motif={motif}`
+
+**Method:** `GET`
+
+**Variables utilisees:**
+- `{motif}` - Description du probleme par le patient
+
+---
+
 ## Reponses API
 
 Toutes les reponses sont au format JSON avec la structure:
@@ -244,14 +271,40 @@ L'IA peut utiliser le champ `message` pour repondre au patient.
 
 ---
 
+## Types de RDV courants - Aiwen Dental Studio
+
+| Code | Type | Duree | Restriction horaire |
+|------|------|-------|---------------------|
+| 4 | Controle | 20 min | Lundi matin, 12h-14h, 16h-17h |
+| 6 | Extraction | 20 min | Matin uniquement |
+| 7 | Empreinte | 50 min | Matin uniquement |
+| 10 | Endo | 60 min | Matin uniquement |
+| 13 | Pose | 20 min | Lundi matin, 12h-14h |
+| 34 | Bilan | 30 min | Lundi matin, 12h-14h, 16h-17h |
+| 35 | Detartrage | 20 min | Lundi matin, 12h-14h, 16h-17h |
+| 36-38 | Urgences | 20 min | Toute la journee |
+| 75 | Douleur | 20 min | Toute la journee |
+| 84 | Nouveau patient | 30 min | Jeudi (surtout apres-midi) |
+| 102 | MEOPA | 60 min | Matin uniquement |
+
+---
+
 ## Notes importantes
 
-1. **Telephone automatique**: Utilisez `{user_phone_number}` pour recuperer automatiquement le numero de l'appelant. Pas besoin de demander le numero au patient.
+1. **Telephone automatique**: Utilisez `{user_phone_number}` pour recuperer automatiquement le numero de l'appelant.
 
 2. **Formats de date acceptes**:
    - ISO: `2026-01-23`
    - Francais: `23/01/2026`
 
-3. **Format d'heure**: Toujours en HHMM (ex: `0930` pour 9h30, `1400` pour 14h00)
+3. **Format d'heure**: Toujours en HHMM (ex: `0850` pour 8h50, `1400` pour 14h00)
 
-4. **Praticien**: Le praticien par defaut est "MC". Pas besoin de le specifier dans les custom actions.
+4. **Praticien**: Le praticien par defaut est "LB" (Dr Lavinia BIRIS).
+
+5. **Horaires**: Lundi-Jeudi 08h50-17h45. Ferme Vendredi-Dimanche.
+
+6. **Regles de planification**:
+   - Nouveaux patients: Jeudi de preference (surtout apres-midi)
+   - Gros RDV (Endo, Empreinte, MEOPA): Matin uniquement
+   - Extractions: Matin uniquement
+   - Controles/Poses: Lundi matin ou 12h-14h
