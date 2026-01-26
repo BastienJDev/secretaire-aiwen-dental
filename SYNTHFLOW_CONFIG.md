@@ -27,17 +27,19 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 
 ### Variables Synthflow
 
+**IMPORTANT: Dans Synthflow, utilisez `< >` pour les variables, pas `{ }`**
+
 | Variable | Description | Auto |
 |----------|-------------|------|
-| `{user_phone_number}` | Numero de l'appelant | OUI (automatique) |
-| `{type_rdv}` | Code numerique du RDV (ex: "4", "10") | NON |
-| `{date_debut}` | Date debut recherche (YYYY-MM-DD) | NON |
-| `{date}` | Date du RDV (YYYY-MM-DD) | NON |
-| `{heure}` | Heure format HHMM (ex: "0850") | NON |
-| `{nom}` | Nom du patient | NON |
-| `{prenom}` | Prenom du patient | NON |
-| `{date_rdv}` | Date RDV a annuler (optionnel) | NON |
-| `{motif}` | Description du probleme | NON |
+| `<user_phone_number>` | Numero de l'appelant | OUI (automatique) |
+| `<type_rdv>` | Code numerique du RDV (ex: "4", "10") | NON |
+| `<date_debut>` | Date debut recherche (YYYY-MM-DD) | NON |
+| `<date>` | Date du RDV (YYYY-MM-DD) | NON |
+| `<heure>` | Heure format HHMM (ex: "0850") | NON |
+| `<nom>` | Nom du patient | NON |
+| `<prenom>` | Prenom du patient | NON |
+| `<date_rdv>` | Date RDV a annuler (optionnel) | NON |
+| `<motif>` | Description du probleme | NON |
 
 ---
 
@@ -59,7 +61,7 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 **Body (JSON):**
 ```json
 {
-  "telephone": "{user_phone_number}"
+  "telephone": "<user_phone_number>"
 }
 ```
 
@@ -91,8 +93,8 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 **Body (JSON):**
 ```json
 {
-  "type_rdv": "{type_rdv}",
-  "date_debut": "{date_debut}",
+  "type_rdv": "<type_rdv>",
+  "date_debut": "<date_debut>",
   "nouveau_patient": true
 }
 ```
@@ -129,12 +131,12 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 **Body (JSON):**
 ```json
 {
-  "type_rdv": "{type_rdv}",
-  "date": "{date}",
-  "heure": "{heure}",
-  "nom": "{nom}",
-  "prenom": "{prenom}",
-  "telephone": "{user_phone_number}",
+  "type_rdv": "<type_rdv>",
+  "date": "<date>",
+  "heure": "<heure>",
+  "nom": "<nom>",
+  "prenom": "<prenom>",
+  "telephone": "<user_phone_number>",
   "nouveau_patient": true
 }
 ```
@@ -176,7 +178,7 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 **Body (JSON):**
 ```json
 {
-  "telephone": "{user_phone_number}"
+  "telephone": "<user_phone_number>"
 }
 ```
 
@@ -208,8 +210,8 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 **Body (JSON):**
 ```json
 {
-  "telephone": "{user_phone_number}",
-  "date_rdv": "{date_rdv}"
+  "telephone": "<user_phone_number>",
+  "date_rdv": "<date_rdv>"
 }
 ```
 
@@ -237,7 +239,7 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 
 **Configuration API:**
 - **Methode:** GET
-- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/info/suggerer_type_rdv?motif={motif}`
+- **URL:** `https://VOTRE-URL-RAILWAY.up.railway.app/info/suggerer_type_rdv?motif=<motif>`
 
 **Variables a creer:**
 | Variable | Description | Exemple |
