@@ -65,6 +65,14 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 
 **Variables:** Aucune a creer (telephone automatique)
 
+**Results a cocher:**
+| Champ | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Indique si la recherche a reussi |
+| `trouve` | boolean | Indique si le patient a ete trouve |
+| `message` | string | Message a lire au patient |
+| `patients` | array | Liste des patients trouves (si plusieurs) |
+
 ---
 
 ### Action 2 : Consulter les disponibilites
@@ -94,6 +102,14 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 |----------|-------------|---------|
 | type_rdv | Code numerique du type de RDV | "4" |
 | date_debut | Date de debut de recherche | "2026-01-27" |
+
+**Results a cocher:**
+| Champ | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Indique si la recherche a reussi |
+| `message` | string | Message a lire au patient |
+| `creneaux` | array | Liste des creneaux disponibles |
+| `nombre_creneaux` | number | Nombre de creneaux trouves |
 
 ---
 
@@ -132,6 +148,16 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 | nom | Nom du patient | "DUPONT" |
 | prenom | Prenom du patient | "Marie" |
 
+**Results a cocher:**
+| Champ | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Indique si la creation a reussi |
+| `message` | string | Message de confirmation a lire au patient |
+| `rdv_id` | string | Identifiant du RDV cree |
+| `date` | string | Date du RDV confirme |
+| `heure` | string | Heure du RDV confirme |
+| `statut` | string | Statut du RDV (ex: "confirme") |
+
 ---
 
 ### Action 4 : Voir les RDV d'un patient
@@ -155,6 +181,14 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 ```
 
 **Variables:** Aucune a creer (telephone automatique)
+
+**Results a cocher:**
+| Champ | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Indique si la recherche a reussi |
+| `message` | string | Message a lire au patient |
+| `rdvs` | array | Liste des RDV du patient |
+| `nombre_rdvs` | number | Nombre de RDV trouves |
 
 ---
 
@@ -184,6 +218,14 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 |----------|-------------|---------|
 | date_rdv | Date du RDV a annuler (optionnel) | "2026-01-28" |
 
+**Results a cocher:**
+| Champ | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Indique si l'annulation a reussi |
+| `message` | string | Message de confirmation a lire au patient |
+| `date` | string | Date du RDV annule |
+| `heure` | string | Heure du RDV annule |
+
 ---
 
 ### Action 6 : Suggerer un type de RDV
@@ -201,6 +243,13 @@ Dans votre dashboard Synthflow/Fine-tuner, creez les actions suivantes.
 | Variable | Description | Exemple |
 |----------|-------------|---------|
 | motif | Description du probleme | "j'ai mal a une dent" |
+
+**Results a cocher:**
+| Champ | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Indique si la suggestion a reussi |
+| `message` | string | Message avec la suggestion a lire au patient |
+| `suggestion` | object | Details du type de RDV suggere (code, nom, duree) |
 
 ---
 
