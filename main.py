@@ -33,7 +33,12 @@ DEFAULT_API_KEY = os.getenv("RDVDENTISTE_API_KEY", "DYND-457AD3+21ZDZX-sdm3ISX")
 DEFAULT_PRATICIEN_ID = "LB"
 
 # Fichier pour stocker les RDV annulés (car l'API rdvdentiste.net ne met pas à jour le statut)
-RDV_ANNULES_FILE = "/tmp/rdv_annules.json"
+# On utilise /data/ pour Railway (volume persistant) ou /tmp/ en fallback local
+DATA_DIR = "/data" if os.path.exists("/data") else "/tmp"
+RDV_ANNULES_FILE = os.path.join(DATA_DIR, "rdv_annules.json")
+
+# S'assurer que le répertoire existe
+os.makedirs(DATA_DIR, exist_ok=True)
 
 
 def charger_rdv_annules() -> set:
