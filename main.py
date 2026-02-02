@@ -806,7 +806,14 @@ async def consulter_disponibilites(
                 time_part = start_time.split("T")[1][:5]
                 heure_code = time_part.replace(":", "")
 
-                # FILTRAGE STRICT: Appliquer si on a une catégorie (via code ou nom)
+                # FILTRAGE SYSTÉMATIQUE: Exclure les jours de fermeture (Vendredi, Samedi, Dimanche)
+                date_obj = datetime.strptime(date_part, "%Y-%m-%d")
+                jour_semaine = date_obj.weekday()
+                if jour_semaine >= 4:  # 4=Vendredi, 5=Samedi, 6=Dimanche - Cabinet fermé
+                    creneaux_filtres += 1
+                    continue
+
+                # FILTRAGE ADDITIONNEL: Appliquer les plages horaires si on a une catégorie
                 if categorie:
                     plages_categorie = PLAGES_HORAIRES.get(categorie, {}).get("plages", {})
                     date_obj = datetime.strptime(date_part, "%Y-%m-%d")
@@ -874,6 +881,20 @@ async def creer_rdv(
     date = convertir_date(request.date)
     date_naissance = convertir_date(request.date_naissance) if request.date_naissance else None
     telephone = normaliser_telephone(request.telephone)
+
+    # VALIDATION SYSTÉMATIQUE: Refuser les jours de fermeture (Vendredi, Samedi, Dimanche)
+    try:
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
+        jour_semaine = date_obj.weekday()
+        if jour_semaine >= 4:  # 4=Vendredi, 5=Samedi, 6=Dimanche
+            jours_noms = {4: "vendredi", 5: "samedi", 6: "dimanche"}
+            print(f"[CREER_RDV] Refusé: le cabinet est fermé le {jours_noms[jour_semaine]}")
+            return {
+                "success": False,
+                "message": f"Le cabinet est fermé le {jours_noms[jour_semaine]}. Veuillez choisir un créneau du lundi au jeudi."
+            }
+    except ValueError:
+        print(f"[CREER_RDV] Date invalide: {date}")
 
     # Valider les plages horaires si type_rdv_nom est fourni
     if request.type_rdv_nom:
